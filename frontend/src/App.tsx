@@ -4,13 +4,11 @@ import { Sidebar } from './components/Sidebar';
 import { TabsBar } from './components/TabsBar';
 import { EditorWrapper } from './components/Editor';
 import { FindReplacePanel } from './components/FindReplacePanel';
-import { SettingsModal } from './components/SettingsModal';
-import { KeybindingModal } from './components/KeybindingModal';
 import { GlobalSearchPanel } from './components/GlobalSearchPanel';
 import { ExportModal } from './components/ExportModal';
 import { RecoveryModal } from './components/RecoveryModal';
 import { UpdaterModal } from './components/UpdaterModal';
-import { PluginManager } from './components/PluginManager';
+import { PreferencesModal } from './components/PreferencesModal';
 import { UnsavedClosePrompt } from './components/UnsavedClosePrompt';
 import { PluginSlotsProvider, SlotRenderer, usePluginSlots } from './context/PluginSlots';
 import { injectPluginSDK, removePluginSDK } from './sdk/TypistAPI';
@@ -25,6 +23,7 @@ function AppContent() {
   const loadTabs = useStore(state => state.loadTabs);
   const loadKeybindings = useStore(state => state.loadKeybindings);
   const loadBuiltInPluginState = useStore(state => state.loadBuiltInPluginState);
+  const loadEditorViewPrefs = useStore(state => state.loadEditorViewPrefs);
   const builtInPluginState = useStore(state => state.builtInPluginState);
   const isSidebarOpen = useStore(state => state.isSidebarOpen);
   const sidebarWidth = useStore(state => state.sidebarWidth);
@@ -107,7 +106,8 @@ function AppContent() {
     loadTabs();
     loadKeybindings();
     loadBuiltInPluginState();
-  }, [loadSettings, loadTabs, loadKeybindings, loadBuiltInPluginState]);
+    loadEditorViewPrefs();
+  }, [loadSettings, loadTabs, loadKeybindings, loadBuiltInPluginState, loadEditorViewPrefs]);
 
   const beginResizeSidebar = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -153,12 +153,10 @@ function AppContent() {
       </div>
 
       <GlobalSearchPanel />
-      <SettingsModal />
-      <KeybindingModal />
+      <PreferencesModal />
       <ExportModal />
       <RecoveryModal />
       <UpdaterModal />
-      <PluginManager />
       <UnsavedClosePrompt />
     </div>
   );

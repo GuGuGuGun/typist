@@ -17,6 +17,17 @@ import { runRegisteredPluginCommand } from '../sdk/TypistAPI';
 import 'prismjs/themes/prism-tomorrow.css';
 import 'katex/dist/katex.min.css';
 
+const isMarkdownFile = (filePath?: string) => {
+  if (!filePath) return false;
+  const lower = filePath.toLowerCase();
+  return lower.endsWith('.md') || lower.endsWith('.markdown');
+};
+
+const getLineByCursor = (content: string, cursor: number) => {
+  const safeCursor = Math.max(0, Math.min(cursor, content.length));
+  return content.slice(0, safeCursor).split(/\r?\n/).length;
+};
+
 const EditorContent: React.FC = () => {
   const activeTabId = useStore(state => state.activeTabId);
   const activeTab = useStore(state => state.tabs.find(t => t.tab_id === activeTabId));
@@ -72,15 +83,23 @@ const SourceEditor: React.FC = () => {
   const activeContent = useStore(state => state.activeContent);
   const setActiveContent = useStore(state => state.setActiveContent);
   const markTabDirty = useStore(state => state.markTabDirty);
+  const showLineNumbersForNonMd = useStore(state => state.showLineNumbersForNonMd);
+  const showLineNumbers = Boolean(showLineNumbersForNonMd && activeTab?.path && !isMarkdownFile(activeTab.path));
 
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
   const cursorByTabRef = React.useRef<Record<string, number>>({});
+  const [activeLine, setActiveLine] = React.useState(1);
+  const [scrollTop, setScrollTop] = React.useState(0);
+  const lineCount = React.useMemo(() => Math.max(1, activeContent.split(/\r?\n/).length), [activeContent]);
+  const lineNumbers = React.useMemo(() => Array.from({ length: lineCount }, (_, idx) => idx + 1), [lineCount]);
 
   useEffect(() => {
     if (!activeTabId || !textareaRef.current) return;
 
     const cursor = cursorByTabRef.current[activeTabId] ?? 0;
     const nextCursor = Math.min(cursor, activeContent.length);
+    setActiveLine(getLineByCursor(activeContent, nextCursor));
+    setScrollTop(0);
 
     requestAnimationFrame(() => {
       textareaRef.current?.setSelectionRange(nextCursor, nextCursor);
@@ -90,6 +109,7 @@ const SourceEditor: React.FC = () => {
   const cacheCursor = (cursor: number) => {
     if (!activeTabId) return;
     cursorByTabRef.current[activeTabId] = cursor;
+    setActiveLine(getLineByCursor(activeContent, cursor));
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -111,16 +131,29 @@ const SourceEditor: React.FC = () => {
   }
 
   return (
-    <div className="source-editor">
+    <div className={`source-editor ${showLineNumbers ? 'with-gutter' : ''}`}>
+      {showLineNumbers && (
+        <div className="source-gutter" aria-hidden="true">
+          <div className="source-gutter-content" style={{ transform: `translateY(-${scrollTop}px)` }}>
+            {lineNumbers.map((lineNo) => (
+              <div key={lineNo} className={`source-line-number ${lineNo === activeLine ? 'active' : ''}`}>
+                {lineNo}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <textarea
         ref={textareaRef}
         className="source-textarea"
         value={activeContent}
         spellCheck={false}
+        wrap="off"
         onChange={handleChange}
         onClick={(e) => cacheCursor(e.currentTarget.selectionStart)}
         onKeyUp={(e) => cacheCursor(e.currentTarget.selectionStart)}
         onSelect={(e) => cacheCursor(e.currentTarget.selectionStart)}
+        onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
       />
     </div>
   );
@@ -128,15 +161,19 @@ const SourceEditor: React.FC = () => {
 
 export const EditorWrapper: React.FC = () => {
   const activeTabId = useStore(state => state.activeTabId);
+  const activeTab = useStore(state => state.tabs.find(t => t.tab_id === activeTabId));
   const settings = useStore(state => state.settings);
   const isSourceMode = useStore(state => state.isSourceMode);
+  const openNonMdInSourceMode = useStore(state => state.openNonMdInSourceMode);
   const toggleSourceMode = useStore(state => state.toggleSourceMode);
   const pluginCommands = useStore(state => state.pluginCommands);
   const [menu, setMenu] = React.useState<{ x: number; y: number } | null>(null);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
+  const forceSourceMode = Boolean(openNonMdInSourceMode && activeTab?.path && !isMarkdownFile(activeTab.path));
+  const shouldUseSourceMode = isSourceMode || forceSourceMode;
 
   const focusActiveEditor = () => {
-    if (isSourceMode) {
+    if (shouldUseSourceMode) {
       const textarea = document.querySelector('.source-textarea') as HTMLTextAreaElement | null;
       textarea?.focus();
       return;
@@ -171,7 +208,7 @@ export const EditorWrapper: React.FC = () => {
       window.removeEventListener('mousedown', handlePointerDown, true);
       window.removeEventListener('keydown', handleKeyDown, true);
     };
-  }, [menu, isSourceMode]);
+  }, [menu, shouldUseSourceMode]);
 
   useEffect(() => {
     const handleContextMenu = (event: MouseEvent) => {
@@ -214,10 +251,10 @@ export const EditorWrapper: React.FC = () => {
   // we ensure it parses the initial value fresh when switching tabs.
   return (
     <div className={`editor-area ${focusClass} ${typewriterClass}`}>
-      {isSourceMode ? (
+      {shouldUseSourceMode ? (
         <SourceEditor />
       ) : (
-        <MilkdownProvider key={`${activeTabId || 'empty'}-${isSourceMode ? 'source' : 'wys'}`}>
+        <MilkdownProvider key={`${activeTabId || 'empty'}-${shouldUseSourceMode ? 'source' : 'wys'}`}>
           <EditorContent />
         </MilkdownProvider>
       )}

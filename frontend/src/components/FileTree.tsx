@@ -114,7 +114,7 @@ export const FileTree: React.FC = () => {
               await loadWorkspace(targetPath as string);
             }
           }}
-          style={{ padding: '6px 12px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+          className="primary-btn"
         >
           Open Folder
         </button>

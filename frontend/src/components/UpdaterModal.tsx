@@ -34,40 +34,58 @@ export const UpdaterModal: React.FC = () => {
   if (!isOpen || !updateInfo) return null;
 
   return (
-    <div style={{
-      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-    }}>
-      <div style={{
-        backgroundColor: 'var(--bg-primary)', width: '400px', borderRadius: 'var(--radius-lg)',
-        boxShadow: '0 8px 30px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column'
-      }}>
-        <div style={{ padding: '16px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--accent)' }}>
-          <h2 style={{ fontSize: '15px', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+    <div className="modal-overlay">
+      <div className="modal-window">
+        <div className="modal-header">
+          <h2 className="modal-title" style={{ color: 'var(--accent)' }}>
             <Sparkles size={18} /> Update Available!
           </h2>
-          <X size={16} style={{ cursor: 'pointer', color: 'var(--text-secondary)' }} onClick={() => setIsOpen(false)} />
+          <div className="modal-close" onClick={() => setIsOpen(false)}>
+            <X size={16} />
+          </div>
         </div>
         
-        <div style={{ padding: '16px', fontSize: '13px', color: 'var(--text-primary)' }}>
-          <p>A new version of Typist is available.</p>
-          <div style={{ background: 'var(--bg-secondary)', padding: '12px', borderRadius: 'var(--radius-md)', margin: '12px 0' }}>
-            <strong>Current Version:</strong> {updateInfo.current_version}<br />
-            <strong>Latest Version:</strong> {updateInfo.latest_version}
+        <div className="modal-content">
+          <p style={{ margin: 0, fontSize: '14px' }}>A new version of Typist is available.</p>
+          <div style={{ 
+            background: 'color-mix(in srgb, var(--bg-secondary) 70%, transparent)', 
+            padding: '12px 16px', 
+            borderRadius: 'var(--radius-md)', 
+            border: '1px solid var(--border-color)',
+            fontSize: '13px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Current Version:</span>
+              <span style={{ fontWeight: 500 }}>{updateInfo.current_version}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Latest Version:</span>
+              <span style={{ fontWeight: 500, color: 'var(--accent)' }}>{updateInfo.latest_version}</span>
+            </div>
           </div>
+          
           {updateInfo.notes && (
-            <div style={{ marginBottom: '12px', color: 'var(--text-secondary)', maxHeight: '100px', overflowY: 'auto' }}>
-              <strong>Release Notes:</strong><br/>
+            <div style={{ 
+              color: 'var(--text-secondary)', 
+              maxHeight: '120px', 
+              overflowY: 'auto',
+              fontSize: '13px',
+              padding: '12px',
+              background: 'var(--bg-primary)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-color)'
+            }}>
+              <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '6px' }}>Release Notes:</strong>
               {updateInfo.notes}
             </div>
           )}
         </div>
 
-        <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-          <button onClick={() => setIsOpen(false)} style={{ padding: '8px 16px', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color)', borderRadius: '4px', cursor: 'pointer' }}>
+        <div className="modal-footer">
+          <button onClick={() => setIsOpen(false)} className="default-btn">
             Later
           </button>
-          <button style={{ padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button className="primary-btn">
             <DownloadCloud size={16} /> Download
           </button>
         </div>

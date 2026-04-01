@@ -11,10 +11,21 @@ import {
 
 const KEYBINDINGS_STORAGE_KEY = 'typist.keybindings.v1';
 const BUILTIN_PLUGIN_STATE_KEY = 'typist.builtin_plugins.v1';
+const EDITOR_VIEW_PREFS_STORAGE_KEY = 'typist.editor_view_prefs.v1';
 
 const DEFAULT_BUILTIN_PLUGIN_STATE: Record<string, boolean> = {
   'dev.typist.builtin.wordcount': true,
   'dev.typist.builtin.advanced-render': true,
+};
+
+interface EditorViewPrefs {
+  showLineNumbersForNonMd: boolean;
+  openNonMdInSourceMode: boolean;
+}
+
+const DEFAULT_EDITOR_VIEW_PREFS: EditorViewPrefs = {
+  showLineNumbersForNonMd: true,
+  openNonMdInSourceMode: true,
 };
 
 interface PluginCommand {
@@ -34,21 +45,22 @@ interface EditorState {
   isSourceMode: boolean;
   isSidebarOpen: boolean;
   isFindReplaceOpen: boolean;
-  isSettingsOpen: boolean;
+  isPreferencesOpen: boolean;
+  preferencesActiveTab: 'settings' | 'keybindings' | 'plugins';
   isGlobalSearchOpen: boolean;
-  isPluginsOpen: boolean;
   isExportOpen: boolean;
   workspaceRoot: string | null;
   workspaceTree: WorkspaceNode | null;
   plugins: PluginRuntime[];
   recoveryDrafts: RecoveryDraftMeta[];
   dirtyCloseTabId: string | null;
-  isKeybindingOpen: boolean;
   keybindings: Record<string, string>;
   pluginCommands: PluginCommand[];
   pendingCloseQueue: string[];
   sidebarWidth: number;
   builtInPluginState: Record<string, boolean>;
+  showLineNumbersForNonMd: boolean;
+  openNonMdInSourceMode: boolean;
 
   // Actions
   loadTabs: () => Promise<void>;
@@ -69,7 +81,10 @@ interface EditorState {
   markTabDirty: (tabId: string, isDirty: boolean) => Promise<void>;
   loadKeybindings: () => void;
   loadBuiltInPluginState: () => void;
+  loadEditorViewPrefs: () => void;
   setBuiltInPluginEnabled: (pluginId: string, enabled: boolean) => void;
+  setShowLineNumbersForNonMd: (enabled: boolean) => void;
+  setOpenNonMdInSourceMode: (enabled: boolean) => void;
   updateKeybinding: (commandId: string, shortcut: string) => void;
   clearKeybinding: (commandId: string) => void;
   resetKeybindings: () => void;
@@ -80,13 +95,12 @@ interface EditorState {
   loadPlugins: () => Promise<void>;
   loadRecoveryDrafts: () => Promise<void>;
   setSidebarWidth: (width: number) => void;
-  toggleKeybinding: () => void;
+  openPreferences: (tab?: 'settings' | 'keybindings' | 'plugins') => void;
+  closePreferences: () => void;
   toggleSourceMode: () => void;
   toggleSidebar: () => void;
   toggleFindReplace: () => void;
-  toggleSettings: () => void;
   toggleGlobalSearch: () => void;
-  togglePlugins: () => void;
   toggleExport: () => void;
 }
 
@@ -100,21 +114,22 @@ export const useStore = create<EditorState>((set, get) => ({
   isSourceMode: false,
   isSidebarOpen: false,
   isFindReplaceOpen: false,
-  isSettingsOpen: false,
+  isPreferencesOpen: false,
+  preferencesActiveTab: 'settings',
   isGlobalSearchOpen: false,
-  isPluginsOpen: false,
   isExportOpen: false,
   workspaceRoot: null,
   workspaceTree: null,
   plugins: [],
   recoveryDrafts: [],
   dirtyCloseTabId: null,
-  isKeybindingOpen: false,
   keybindings: { ...DEFAULT_KEYBINDINGS },
   pluginCommands: [],
   pendingCloseQueue: [],
   sidebarWidth: 260,
   builtInPluginState: { ...DEFAULT_BUILTIN_PLUGIN_STATE },
+  showLineNumbersForNonMd: DEFAULT_EDITOR_VIEW_PREFS.showLineNumbersForNonMd,
+  openNonMdInSourceMode: DEFAULT_EDITOR_VIEW_PREFS.openNonMdInSourceMode,
 
   loadTabs: async () => {
     try {
@@ -370,6 +385,25 @@ export const useStore = create<EditorState>((set, get) => ({
     }
   },
 
+  loadEditorViewPrefs: () => {
+    try {
+      const stored = localStorage.getItem(EDITOR_VIEW_PREFS_STORAGE_KEY);
+      if (!stored) {
+        set({ ...DEFAULT_EDITOR_VIEW_PREFS });
+        return;
+      }
+
+      const parsed = JSON.parse(stored) as Partial<EditorViewPrefs>;
+      set({
+        showLineNumbersForNonMd: parsed.showLineNumbersForNonMd ?? DEFAULT_EDITOR_VIEW_PREFS.showLineNumbersForNonMd,
+        openNonMdInSourceMode: parsed.openNonMdInSourceMode ?? DEFAULT_EDITOR_VIEW_PREFS.openNonMdInSourceMode,
+      });
+    } catch (e) {
+      console.error('Failed to load editor view prefs:', e);
+      set({ ...DEFAULT_EDITOR_VIEW_PREFS });
+    }
+  },
+
   setBuiltInPluginEnabled: (pluginId: string, enabled: boolean) => {
     set((state) => {
       const next = {
@@ -379,6 +413,28 @@ export const useStore = create<EditorState>((set, get) => ({
 
       localStorage.setItem(BUILTIN_PLUGIN_STATE_KEY, JSON.stringify(next));
       return { builtInPluginState: next };
+    });
+  },
+
+  setShowLineNumbersForNonMd: (enabled: boolean) => {
+    set((state) => {
+      const next = {
+        showLineNumbersForNonMd: enabled,
+        openNonMdInSourceMode: state.openNonMdInSourceMode,
+      };
+      localStorage.setItem(EDITOR_VIEW_PREFS_STORAGE_KEY, JSON.stringify(next));
+      return { showLineNumbersForNonMd: enabled };
+    });
+  },
+
+  setOpenNonMdInSourceMode: (enabled: boolean) => {
+    set((state) => {
+      const next = {
+        showLineNumbersForNonMd: state.showLineNumbersForNonMd,
+        openNonMdInSourceMode: enabled,
+      };
+      localStorage.setItem(EDITOR_VIEW_PREFS_STORAGE_KEY, JSON.stringify(next));
+      return { openNonMdInSourceMode: enabled };
     });
   },
 
@@ -508,12 +564,11 @@ export const useStore = create<EditorState>((set, get) => ({
     set({ sidebarWidth: clamped });
   },
 
-  toggleKeybinding: () => set(state => ({ isKeybindingOpen: !state.isKeybindingOpen })),
+  openPreferences: (tab = 'settings') => set({ isPreferencesOpen: true, preferencesActiveTab: tab }),
+  closePreferences: () => set({ isPreferencesOpen: false }),
   toggleSourceMode: () => set(state => ({ isSourceMode: !state.isSourceMode })),
   toggleSidebar: () => set(state => ({ isSidebarOpen: !state.isSidebarOpen })),
   toggleFindReplace: () => set(state => ({ isFindReplaceOpen: !state.isFindReplaceOpen })),
-  toggleSettings: () => set(state => ({ isSettingsOpen: !state.isSettingsOpen })),
   toggleGlobalSearch: () => set(state => ({ isGlobalSearchOpen: !state.isGlobalSearchOpen })),
-  togglePlugins: () => set(state => ({ isPluginsOpen: !state.isPluginsOpen })),
   toggleExport: () => set(state => ({ isExportOpen: !state.isExportOpen }))
 }));

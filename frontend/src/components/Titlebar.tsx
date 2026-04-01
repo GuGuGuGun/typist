@@ -5,7 +5,6 @@ import {
   FileSearch,
   Menu,
   Minus,
-  Plug,
   Search,
   Settings2,
   Square,
@@ -19,11 +18,10 @@ const appWindow = getCurrentWindow();
 export const Titlebar: React.FC = () => {
   const [isMaximized, setIsMaximized] = useState(false);
   const toggleSidebar = useStore(state => state.toggleSidebar);
-  const toggleSettings = useStore(state => state.toggleSettings);
+  const openPreferences = useStore(state => state.openPreferences);
   const toggleFindReplace = useStore(state => state.toggleFindReplace);
   const toggleGlobalSearch = useStore(state => state.toggleGlobalSearch);
   const toggleExport = useStore(state => state.toggleExport);
-  const togglePlugins = useStore(state => state.togglePlugins);
   const isSourceMode = useStore(state => state.isSourceMode);
   const toggleSourceMode = useStore(state => state.toggleSourceMode);
 
@@ -79,10 +77,6 @@ export const Titlebar: React.FC = () => {
           <Menu size={14} />
           <span>侧栏</span>
         </button>
-        <button className="command-btn titlebar-no-drag" onClick={toggleSettings} title="设置">
-          <Settings2 size={14} />
-          <span>设置</span>
-        </button>
         <button className="command-btn titlebar-no-drag" onClick={toggleFindReplace} title="查找替换 (Ctrl+F / Ctrl+H)">
           <FileSearch size={14} />
           <span>查找</span>
@@ -95,9 +89,9 @@ export const Titlebar: React.FC = () => {
           <FileOutput size={14} />
           <span>导出</span>
         </button>
-        <button className="command-btn titlebar-no-drag" onClick={togglePlugins} title="插件管理">
-          <Plug size={14} />
-          <span>插件</span>
+              <button className="command-btn titlebar-no-drag" onClick={() => openPreferences('settings')} title="设置">
+          <Settings2 size={14} />
+          <span>设置</span>
         </button>
         <button
           className={`command-btn titlebar-no-drag ${isSourceMode ? 'active' : ''}`}

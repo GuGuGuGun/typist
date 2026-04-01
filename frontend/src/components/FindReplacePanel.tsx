@@ -169,15 +169,15 @@ export const FindReplacePanel: React.FC = () => {
   const currentMatch = currentMatchIndex >= 0 ? matches[currentMatchIndex] : null;
 
   return (
-    <div className="find-panel">
+    <div className="find-panel" style={{ boxShadow: 'var(--shadow-float)', border: '1px solid color-mix(in srgb, var(--border-color) 60%, transparent)', background: 'color-mix(in srgb, var(--bg-secondary) 85%, transparent)', backdropFilter: 'blur(24px)', padding: '16px', borderRadius: '12px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: '12px', fontWeight: 600 }}>Find & Replace</span>
-        <X size={14} style={{ cursor: 'pointer' }} onClick={toggleOpen} />
+        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Find & Replace</span>
+        <div className="modal-close" onClick={toggleOpen}><X size={14} /></div>
       </div>
 
-      <div style={{ display: 'flex', gap: '4px' }}>
+      <div style={{ display: 'flex', gap: '6px' }}>
         <input 
-          style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+          style={{ flex: 1, padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)' }}
           placeholder="Find..." 
           value={query} 
           onChange={e => setQuery(e.target.value)}
@@ -194,23 +194,23 @@ export const FindReplacePanel: React.FC = () => {
             }
           }}
         />
-        <button className="titlebar-btn" onClick={handleSearch} title="Find"><Search size={14} /></button>
+        <button className="default-btn" style={{ padding: '0 10px' }} onClick={handleSearch} title="Find"><Search size={14} /></button>
       </div>
 
-      <div style={{ display: 'flex', gap: '4px' }}>
+      <div style={{ display: 'flex', gap: '6px' }}>
         <input 
-          style={{ flex: 1, padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+          style={{ flex: 1, padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)' }}
           placeholder="Replace..." 
           value={replaceWith} 
           onChange={e => setReplaceWith(e.target.value)}
         />
-        <button className="titlebar-btn" onClick={handleReplaceAll} title="Replace All"><Replace size={14} /></button>
+        <button className="default-btn" style={{ padding: '0 10px' }} onClick={handleReplaceAll} title="Replace All"><Replace size={14} /></button>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', fontSize: '11px', color: 'var(--text-secondary)' }}>
-        <label><input type="checkbox" checked={matchCase} onChange={e => setMatchCase(e.target.checked)} /> Aa</label>
-        <label><input type="checkbox" checked={wholeWord} onChange={e => setWholeWord(e.target.checked)} /> |ab|</label>
-        <label><input type="checkbox" checked={useRegex} onChange={e => setUseRegex(e.target.checked)} /> .*</label>
+      <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: 'var(--text-secondary)', padding: '2px 4px' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}><input type="checkbox" checked={matchCase} onChange={e => setMatchCase(e.target.checked)} style={{ accentColor: 'var(--accent)' }} /> Case</label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}><input type="checkbox" checked={wholeWord} onChange={e => setWholeWord(e.target.checked)} style={{ accentColor: 'var(--accent)' }} /> Word</label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}><input type="checkbox" checked={useRegex} onChange={e => setUseRegex(e.target.checked)} style={{ accentColor: 'var(--accent)' }} /> Regex</label>
       </div>
 
       {matches.length > 0 && (

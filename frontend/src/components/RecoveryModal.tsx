@@ -39,44 +39,50 @@ export const RecoveryModal: React.FC = () => {
   };
 
   return (
-    <div style={{
-      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-    }}>
-      <div style={{
-        backgroundColor: 'var(--bg-primary)', width: '480px', borderRadius: 'var(--radius-lg)',
-        boxShadow: '0 8px 30px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column'
-      }}>
-        <div style={{ padding: '16px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent)' }}>
-          <AlertTriangle size={18} />
-          <h2 style={{ fontSize: '15px', fontWeight: 600, margin: 0 }}>Unsaved Drafts Recovered</h2>
+    <div className="modal-overlay">
+      <div className="modal-window">
+        <div className="modal-header">
+          <h2 className="modal-title" style={{ color: 'var(--accent)' }}>
+            <AlertTriangle size={18} />
+            Unsaved Drafts Recovered
+          </h2>
         </div>
         
-        <div style={{ padding: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-          Typist recovered unsaved drafts from a previous session due to an unexpected crash or force quit. Do you want to restore them?
-        </div>
+        <div className="modal-content">
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
+            Typist recovered unsaved drafts from a previous session due to an unexpected crash or force quit. Do you want to restore them?
+          </p>
 
-        <div style={{ maxHeight: '300px', overflowY: 'auto', borderTop: '1px solid var(--border-color)' }}>
-          {drafts.map((draft, idx) => (
-            <div key={idx} style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
-                  {draft.source_path ? draft.source_path.split(/[/\\]/).pop() : 'Untitled Document'}
+          <div style={{
+            maxHeight: '260px',
+            overflowY: 'auto',
+            border: '1px solid var(--border-color)',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--bg-secondary)',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            {drafts.map((draft, idx) => (
+              <div key={idx} style={{ padding: '12px 16px', borderBottom: idx !== drafts.length - 1 ? '1px solid var(--border-color)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                    {draft.source_path ? draft.source_path.split(/[/\\]/).pop() : 'Untitled Document'}
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+                    <ClockAlert size={12} /> {new Date(draft.updated_epoch_ms).toLocaleString()}
+                  </div>
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
-                  <ClockAlert size={12} /> {new Date(draft.updated_epoch_ms).toLocaleString()}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => handleRestore(draft.draft_id)} className="primary-btn">
+                    <Check size={14} /> Restore
+                  </button>
+                  <button onClick={() => handleDiscard(draft.draft_id)} className="default-btn">
+                    <X size={14} /> Discard
+                  </button>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={() => handleRestore(draft.draft_id)} style={{ padding: '6px 10px', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Check size={14} color="var(--accent)" /> Restore
-                </button>
-                <button onClick={() => handleDiscard(draft.draft_id)} style={{ padding: '6px 10px', background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border-color)', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <X size={14} /> Discard
-                </button>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </div>
