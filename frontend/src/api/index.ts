@@ -227,6 +227,18 @@ export const api = {
   // Workspace
   openWorkspace: (path: string) => invoke<OpenWorkspaceResponse>('open_workspace_cmd', { path }),
   getWorkspacePath: () => invoke<string | null>('get_workspace_path_cmd'),
+  createWorkspaceFile: (parentPath: string, name: string) =>
+    invoke<string>('create_workspace_file_cmd', { parentPath, name }),
+  createWorkspaceFolder: (parentPath: string, name: string) =>
+    invoke<string>('create_workspace_folder_cmd', { parentPath, name }),
+  renameWorkspaceEntry: (targetPath: string, newName: string) =>
+    invoke<string>('rename_workspace_entry_cmd', { targetPath, newName }),
+  deleteWorkspaceEntry: (targetPath: string) =>
+    invoke<void>('delete_workspace_entry_cmd', { targetPath }),
+  moveWorkspaceEntry: (sourcePath: string, destinationParentPath: string) =>
+    invoke<string>('move_workspace_entry_cmd', { sourcePath, destinationParentPath }),
+  copyWorkspaceEntry: (sourcePath: string, destinationParentPath: string) =>
+    invoke<string>('copy_workspace_entry_cmd', { sourcePath, destinationParentPath }),
   globalSearch: (request: GlobalSearchRequest) => invoke<GlobalSearchResponse>('global_search_cmd', { request }),
 
   // Recovery

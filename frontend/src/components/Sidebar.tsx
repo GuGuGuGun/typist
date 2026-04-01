@@ -1,14 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store';
+import { api } from '../api';
 import { Clock } from 'lucide-react';
-import { FileTree } from './FileTree';
+import { FILE_TREE_START_CREATE_EVENT, FileTree } from './FileTree';
 
 export const Sidebar: React.FC = () => {
   const isSidebarOpen = useStore(state => state.isSidebarOpen);
   const recentFiles = useStore(state => state.recentFiles);
+  const tabs = useStore(state => state.tabs);
   const loadRecentFiles = useStore(state => state.loadRecentFiles);
   const openFile = useStore(state => state.openFile);
+  const closeTab = useStore(state => state.closeTab);
   const loadWorkspace = useStore(state => state.loadWorkspace);
+  const workspaceRoot = useStore(state => state.workspaceRoot);
 
   const [activeTab, setActiveTab] = useState<'explorer' | 'recent'>('explorer');
   const [menu, setMenu] = useState<{ x: number; y: number; path: string } | null>(null);
@@ -49,6 +53,156 @@ export const Sidebar: React.FC = () => {
       window.removeEventListener('keydown', closeOnEsc, true);
     };
   }, []);
+
+  const createEntryInRoot = async (kind: 'file' | 'folder') => {
+    if (!workspaceRoot) {
+      window.alert('请先打开一个工作区文件夹');
+      setPanelMenu(null);
+      return;
+    }
+
+    window.dispatchEvent(
+      new CustomEvent(FILE_TREE_START_CREATE_EVENT, {
+        detail: {
+          kind,
+          parentPath: workspaceRoot,
+        },
+      }),
+    );
+    setPanelMenu(null);
+  };
+
+  const normalizePath = (value: string) => value.replace(/\\/g, '/').toLowerCase();
+  const getParentPath = (path: string) => {
+    const normalized = path.replace(/\\/g, '/');
+    const separatorIndex = normalized.lastIndexOf('/');
+    if (separatorIndex <= 0) return normalized;
+    return normalized.slice(0, separatorIndex);
+  };
+
+  const pickDestinationDirectory = async (defaultPath?: string) => {
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const selected = await open({ directory: true, defaultPath });
+    if (!selected || Array.isArray(selected)) {
+      return null;
+    }
+
+    return selected as string;
+  };
+
+  const renameRecentFile = async (path: string) => {
+    const fileName = path.split(/[/\\]/).pop() ?? 'untitled.md';
+    const nextName = window.prompt('请输入新名称', fileName)?.trim();
+    if (!nextName) {
+      setMenu(null);
+      return;
+    }
+
+    const affectedTabs = tabs.filter((tab) => normalizePath(tab.path) === normalizePath(path));
+    if (affectedTabs.some((tab) => tab.is_dirty)) {
+      window.alert('该文件存在未保存的打开标签，请先保存并关闭后再重命名。');
+      setMenu(null);
+      return;
+    }
+
+    try {
+      const renamedPath = await api.renameWorkspaceEntry(path, nextName);
+      for (const tab of affectedTabs) {
+        await closeTab(tab.tab_id);
+      }
+      await loadWorkspace();
+      await loadRecentFiles();
+      if (affectedTabs.length > 0) {
+        await openFile(renamedPath);
+      }
+    } catch (error) {
+      window.alert(`重命名失败: ${String(error)}`);
+    } finally {
+      setMenu(null);
+    }
+  };
+
+  const deleteRecentFile = async (path: string) => {
+    const affectedTabs = tabs.filter((tab) => normalizePath(tab.path) === normalizePath(path));
+    if (affectedTabs.some((tab) => tab.is_dirty)) {
+      window.alert('该文件存在未保存的打开标签，请先保存并关闭后再删除。');
+      setMenu(null);
+      return;
+    }
+
+    const confirmed = window.confirm('确认删除该文件吗？');
+    if (!confirmed) {
+      setMenu(null);
+      return;
+    }
+
+    try {
+      await api.deleteWorkspaceEntry(path);
+      for (const tab of affectedTabs) {
+        await closeTab(tab.tab_id);
+      }
+      await loadWorkspace();
+      await loadRecentFiles();
+    } catch (error) {
+      window.alert(`删除失败: ${String(error)}`);
+    } finally {
+      setMenu(null);
+    }
+  };
+
+  const moveRecentFile = async (path: string) => {
+    const affectedTabs = tabs.filter((tab) => normalizePath(tab.path) === normalizePath(path));
+    if (affectedTabs.some((tab) => tab.is_dirty)) {
+      window.alert('该文件存在未保存的打开标签，请先保存并关闭后再移动。');
+      setMenu(null);
+      return;
+    }
+
+    const selected = await pickDestinationDirectory(getParentPath(path));
+    if (!selected) {
+      setMenu(null);
+      return;
+    }
+
+    if (normalizePath(selected) === normalizePath(getParentPath(path))) {
+      setMenu(null);
+      return;
+    }
+
+    try {
+      const movedPath = await api.moveWorkspaceEntry(path, selected);
+      for (const tab of affectedTabs) {
+        await closeTab(tab.tab_id);
+      }
+      await loadWorkspace();
+      await loadRecentFiles();
+      if (affectedTabs.length > 0) {
+        await openFile(movedPath);
+      }
+    } catch (error) {
+      window.alert(`移动失败: ${String(error)}`);
+    } finally {
+      setMenu(null);
+    }
+  };
+
+  const copyRecentFile = async (path: string) => {
+    const selected = await pickDestinationDirectory(getParentPath(path));
+    if (!selected) {
+      setMenu(null);
+      return;
+    }
+
+    try {
+      await api.copyWorkspaceEntry(path, selected);
+      await loadWorkspace();
+      await loadRecentFiles();
+    } catch (error) {
+      window.alert(`复制失败: ${String(error)}`);
+    } finally {
+      setMenu(null);
+    }
+  };
 
   return (
     <div className={`sidebar ${isSidebarOpen ? '' : 'closed'}`}>
@@ -133,6 +287,38 @@ export const Sidebar: React.FC = () => {
           <button
             className="context-menu-item"
             onClick={async () => {
+              await renameRecentFile(menu.path);
+            }}
+          >
+            重命名
+          </button>
+          <button
+            className="context-menu-item"
+            onClick={async () => {
+              await moveRecentFile(menu.path);
+            }}
+          >
+            移动到...
+          </button>
+          <button
+            className="context-menu-item"
+            onClick={async () => {
+              await copyRecentFile(menu.path);
+            }}
+          >
+            复制到...
+          </button>
+          <button
+            className="context-menu-item"
+            onClick={async () => {
+              await deleteRecentFile(menu.path);
+            }}
+          >
+            删除
+          </button>
+          <button
+            className="context-menu-item"
+            onClick={async () => {
               await navigator.clipboard.writeText(menu.path);
               setMenu(null);
             }}
@@ -182,6 +368,26 @@ export const Sidebar: React.FC = () => {
           >
             打开文件夹
           </button>
+          {activeTab === 'explorer' && (
+            <button
+              className="context-menu-item"
+              onClick={async () => {
+                await createEntryInRoot('file');
+              }}
+            >
+              新建文件
+            </button>
+          )}
+          {activeTab === 'explorer' && (
+            <button
+              className="context-menu-item"
+              onClick={async () => {
+                await createEntryInRoot('folder');
+              }}
+            >
+              新建文件夹
+            </button>
+          )}
           <button
             className="context-menu-item"
             onClick={async () => {

@@ -166,6 +166,30 @@ impl BackendFacade {
         Ok(state.workspace_root())
     }
 
+    pub fn create_workspace_file(&self, parent_path: String, name: String) -> BackendResult<String> {
+        workspace_service::create_workspace_file(parent_path.as_str(), name.as_str())
+    }
+
+    pub fn create_workspace_folder(&self, parent_path: String, name: String) -> BackendResult<String> {
+        workspace_service::create_workspace_folder(parent_path.as_str(), name.as_str())
+    }
+
+    pub fn rename_workspace_entry(&self, target_path: String, new_name: String) -> BackendResult<String> {
+        workspace_service::rename_workspace_entry(target_path.as_str(), new_name.as_str())
+    }
+
+    pub fn delete_workspace_entry(&self, target_path: String) -> BackendResult<()> {
+        workspace_service::delete_workspace_entry(target_path.as_str())
+    }
+
+    pub fn move_workspace_entry(&self, source_path: String, destination_parent_path: String) -> BackendResult<String> {
+        workspace_service::move_workspace_entry(source_path.as_str(), destination_parent_path.as_str())
+    }
+
+    pub fn copy_workspace_entry(&self, source_path: String, destination_parent_path: String) -> BackendResult<String> {
+        workspace_service::copy_workspace_entry(source_path.as_str(), destination_parent_path.as_str())
+    }
+
     pub fn global_search(&self, request: GlobalSearchRequest) -> BackendResult<GlobalSearchResponse> {
         workspace_service::global_search(&request)
     }
@@ -460,6 +484,65 @@ pub fn get_workspace_path_cmd(
     backend: tauri::State<'_, BackendFacade>,
 ) -> Result<Option<String>, String> {
     to_invoke_result(backend.get_workspace_path())
+}
+
+#[cfg(feature = "tauri-integration")]
+#[tauri::command]
+pub fn create_workspace_file_cmd(
+    backend: tauri::State<'_, BackendFacade>,
+    parent_path: String,
+    name: String,
+) -> Result<String, String> {
+    to_invoke_result(backend.create_workspace_file(parent_path, name))
+}
+
+#[cfg(feature = "tauri-integration")]
+#[tauri::command]
+pub fn create_workspace_folder_cmd(
+    backend: tauri::State<'_, BackendFacade>,
+    parent_path: String,
+    name: String,
+) -> Result<String, String> {
+    to_invoke_result(backend.create_workspace_folder(parent_path, name))
+}
+
+#[cfg(feature = "tauri-integration")]
+#[tauri::command]
+pub fn rename_workspace_entry_cmd(
+    backend: tauri::State<'_, BackendFacade>,
+    target_path: String,
+    new_name: String,
+) -> Result<String, String> {
+    to_invoke_result(backend.rename_workspace_entry(target_path, new_name))
+}
+
+#[cfg(feature = "tauri-integration")]
+#[tauri::command]
+pub fn delete_workspace_entry_cmd(
+    backend: tauri::State<'_, BackendFacade>,
+    target_path: String,
+) -> Result<(), String> {
+    to_invoke_result(backend.delete_workspace_entry(target_path))
+}
+
+#[cfg(feature = "tauri-integration")]
+#[tauri::command]
+pub fn move_workspace_entry_cmd(
+    backend: tauri::State<'_, BackendFacade>,
+    source_path: String,
+    destination_parent_path: String,
+) -> Result<String, String> {
+    to_invoke_result(backend.move_workspace_entry(source_path, destination_parent_path))
+}
+
+#[cfg(feature = "tauri-integration")]
+#[tauri::command]
+pub fn copy_workspace_entry_cmd(
+    backend: tauri::State<'_, BackendFacade>,
+    source_path: String,
+    destination_parent_path: String,
+) -> Result<String, String> {
+    to_invoke_result(backend.copy_workspace_entry(source_path, destination_parent_path))
 }
 
 #[cfg(feature = "tauri-integration")]
