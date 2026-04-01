@@ -3,6 +3,7 @@ import { useStore } from '../store';
 import { api } from '../api';
 import { Clock } from 'lucide-react';
 import { FILE_TREE_START_CREATE_EVENT, FileTree } from './FileTree';
+import { getLocaleMessages, pickRandomStartupCopy } from '../i18n';
 
 export const Sidebar: React.FC = () => {
   const isSidebarOpen = useStore(state => state.isSidebarOpen);
@@ -13,10 +14,15 @@ export const Sidebar: React.FC = () => {
   const closeTab = useStore(state => state.closeTab);
   const loadWorkspace = useStore(state => state.loadWorkspace);
   const workspaceRoot = useStore(state => state.workspaceRoot);
+  const language = useStore(state => state.language);
 
   const [activeTab, setActiveTab] = useState<'explorer' | 'recent'>('explorer');
   const [menu, setMenu] = useState<{ x: number; y: number; path: string } | null>(null);
   const [panelMenu, setPanelMenu] = useState<{ x: number; y: number } | null>(null);
+  const locale = getLocaleMessages(language);
+  const startupText = React.useMemo(() => pickRandomStartupCopy(language), [language]);
+  const startupCopy = locale.startup;
+  const sidebarText = locale.sidebar;
   const itemMenuRef = React.useRef<HTMLDivElement | null>(null);
   const panelMenuRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -56,7 +62,7 @@ export const Sidebar: React.FC = () => {
 
   const createEntryInRoot = async (kind: 'file' | 'folder') => {
     if (!workspaceRoot) {
-      window.alert('请先打开一个工作区文件夹');
+      window.alert(sidebarText.alertOpenWorkspaceFirst);
       setPanelMenu(null);
       return;
     }
@@ -92,7 +98,7 @@ export const Sidebar: React.FC = () => {
 
   const renameRecentFile = async (path: string) => {
     const fileName = path.split(/[/\\]/).pop() ?? 'untitled.md';
-    const nextName = window.prompt('请输入新名称', fileName)?.trim();
+    const nextName = window.prompt(sidebarText.promptRename, fileName)?.trim();
     if (!nextName) {
       setMenu(null);
       return;
@@ -100,7 +106,7 @@ export const Sidebar: React.FC = () => {
 
     const affectedTabs = tabs.filter((tab) => normalizePath(tab.path) === normalizePath(path));
     if (affectedTabs.some((tab) => tab.is_dirty)) {
-      window.alert('该文件存在未保存的打开标签，请先保存并关闭后再重命名。');
+      window.alert(sidebarText.dirtyBeforeRename);
       setMenu(null);
       return;
     }
@@ -116,7 +122,7 @@ export const Sidebar: React.FC = () => {
         await openFile(renamedPath);
       }
     } catch (error) {
-      window.alert(`重命名失败: ${String(error)}`);
+      window.alert(`${sidebarText.renameFailedPrefix}: ${String(error)}`);
     } finally {
       setMenu(null);
     }
@@ -125,12 +131,12 @@ export const Sidebar: React.FC = () => {
   const deleteRecentFile = async (path: string) => {
     const affectedTabs = tabs.filter((tab) => normalizePath(tab.path) === normalizePath(path));
     if (affectedTabs.some((tab) => tab.is_dirty)) {
-      window.alert('该文件存在未保存的打开标签，请先保存并关闭后再删除。');
+      window.alert(sidebarText.dirtyBeforeDelete);
       setMenu(null);
       return;
     }
 
-    const confirmed = window.confirm('确认删除该文件吗？');
+    const confirmed = window.confirm(sidebarText.confirmDelete);
     if (!confirmed) {
       setMenu(null);
       return;
@@ -144,7 +150,7 @@ export const Sidebar: React.FC = () => {
       await loadWorkspace();
       await loadRecentFiles();
     } catch (error) {
-      window.alert(`删除失败: ${String(error)}`);
+      window.alert(`${sidebarText.deleteFailedPrefix}: ${String(error)}`);
     } finally {
       setMenu(null);
     }
@@ -153,7 +159,7 @@ export const Sidebar: React.FC = () => {
   const moveRecentFile = async (path: string) => {
     const affectedTabs = tabs.filter((tab) => normalizePath(tab.path) === normalizePath(path));
     if (affectedTabs.some((tab) => tab.is_dirty)) {
-      window.alert('该文件存在未保存的打开标签，请先保存并关闭后再移动。');
+      window.alert(sidebarText.dirtyBeforeMove);
       setMenu(null);
       return;
     }
@@ -180,7 +186,7 @@ export const Sidebar: React.FC = () => {
         await openFile(movedPath);
       }
     } catch (error) {
-      window.alert(`移动失败: ${String(error)}`);
+      window.alert(`${sidebarText.moveFailedPrefix}: ${String(error)}`);
     } finally {
       setMenu(null);
     }
@@ -198,7 +204,7 @@ export const Sidebar: React.FC = () => {
       await loadWorkspace();
       await loadRecentFiles();
     } catch (error) {
-      window.alert(`复制失败: ${String(error)}`);
+      window.alert(`${sidebarText.copyFailedPrefix}: ${String(error)}`);
     } finally {
       setMenu(null);
     }
@@ -211,13 +217,13 @@ export const Sidebar: React.FC = () => {
           onClick={() => setActiveTab('explorer')}
           className={`sidebar-tab-btn ${activeTab === 'explorer' ? 'active' : ''}`}
         >
-          Explorer
+          {startupCopy.explorerTab}
         </button>
         <button 
           onClick={() => setActiveTab('recent')}
           className={`sidebar-tab-btn ${activeTab === 'recent' ? 'active' : ''}`}
         >
-          Recent
+          {startupCopy.recentTab}
         </button>
       </div>
 
@@ -257,7 +263,8 @@ export const Sidebar: React.FC = () => {
             })}
             {recentFiles.length === 0 && (
               <div className="sidebar-empty">
-                No recent files.
+                <div>{startupCopy.recentEmpty}</div>
+                <div className="sidebar-empty-note">{startupText}</div>
               </div>
             )}
           </div>
@@ -282,7 +289,7 @@ export const Sidebar: React.FC = () => {
               setMenu(null);
             }}
           >
-            打开文件
+            {sidebarText.openFile}
           </button>
           <button
             className="context-menu-item"
@@ -290,7 +297,7 @@ export const Sidebar: React.FC = () => {
               await renameRecentFile(menu.path);
             }}
           >
-            重命名
+            {sidebarText.rename}
           </button>
           <button
             className="context-menu-item"
@@ -298,7 +305,7 @@ export const Sidebar: React.FC = () => {
               await moveRecentFile(menu.path);
             }}
           >
-            移动到...
+            {sidebarText.moveTo}
           </button>
           <button
             className="context-menu-item"
@@ -306,7 +313,7 @@ export const Sidebar: React.FC = () => {
               await copyRecentFile(menu.path);
             }}
           >
-            复制到...
+            {sidebarText.copyTo}
           </button>
           <button
             className="context-menu-item"
@@ -314,7 +321,7 @@ export const Sidebar: React.FC = () => {
               await deleteRecentFile(menu.path);
             }}
           >
-            删除
+            {sidebarText.delete}
           </button>
           <button
             className="context-menu-item"
@@ -323,7 +330,7 @@ export const Sidebar: React.FC = () => {
               setMenu(null);
             }}
           >
-            复制路径
+            {sidebarText.copyPath}
           </button>
         </div>
       )}
@@ -345,7 +352,7 @@ export const Sidebar: React.FC = () => {
               const { open } = await import('@tauri-apps/plugin-dialog');
               const selected = await open({
                 multiple: false,
-                filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }],
+                filters: [{ name: sidebarText.markdownFilterName, extensions: ['md', 'markdown', 'txt'] }],
               });
               if (selected) {
                 await openFile(selected as string);
@@ -353,7 +360,7 @@ export const Sidebar: React.FC = () => {
               setPanelMenu(null);
             }}
           >
-            打开文件
+            {sidebarText.openFile}
           </button>
           <button
             className="context-menu-item"
@@ -366,7 +373,7 @@ export const Sidebar: React.FC = () => {
               setPanelMenu(null);
             }}
           >
-            打开文件夹
+            {sidebarText.openFolder}
           </button>
           {activeTab === 'explorer' && (
             <button
@@ -375,7 +382,7 @@ export const Sidebar: React.FC = () => {
                 await createEntryInRoot('file');
               }}
             >
-              新建文件
+              {sidebarText.newFile}
             </button>
           )}
           {activeTab === 'explorer' && (
@@ -385,7 +392,7 @@ export const Sidebar: React.FC = () => {
                 await createEntryInRoot('folder');
               }}
             >
-              新建文件夹
+              {sidebarText.newFolder}
             </button>
           )}
           <button
@@ -399,7 +406,7 @@ export const Sidebar: React.FC = () => {
               setPanelMenu(null);
             }}
           >
-            刷新当前面板
+            {sidebarText.refreshPanel}
           </button>
         </div>
       )}

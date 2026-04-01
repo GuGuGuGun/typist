@@ -3,6 +3,7 @@ import { useStore } from '../store';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { api } from '../api';
 import { eventToShortcut } from '../commands/definitions';
+import { openNewAppWindow } from '../commands/windowActions';
 import { runRegisteredPluginCommand } from '../sdk/TypistAPI';
 
 export const useShortcuts = () => {
@@ -90,6 +91,10 @@ export const useShortcuts = () => {
         if (targetPath) {
           console.log('Ctrl+N target:', targetPath);
         }
+        return;
+      }
+      case 'file.newWindow': {
+        await openNewAppWindow();
         return;
       }
       case 'file.save': {
@@ -186,6 +191,7 @@ export const useShortcuts = () => {
         [
           'file.open',
           'file.new',
+          'file.newWindow',
           'file.save',
           'file.saveAs',
           'file.closeTab',
@@ -206,7 +212,7 @@ export const useShortcuts = () => {
       e.preventDefault();
 
       // No active tab scenario: only allow a subset to execute.
-      if (!activeTabId && ['file.open', 'file.new', 'view.toggleSidebar'].every(id => id !== commandId)) {
+      if (!activeTabId && ['file.open', 'file.new', 'file.newWindow', 'view.toggleSidebar'].every(id => id !== commandId)) {
         return;
       }
 

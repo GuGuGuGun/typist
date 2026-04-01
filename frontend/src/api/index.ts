@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 // --- Type Definitions (Sync with backend/models.rs) ---
 
 export type ThemeMode = 'system' | 'light' | 'dark';
+export type AppLanguageMode = 'zh' | 'en';
 
 export interface TabSummary {
   tab_id: string;
@@ -25,6 +26,7 @@ export interface EditorSettings {
   update_feed_url: string | null;
   recovery_dir: string | null;
   image_assets_dir: string | null;
+  language: AppLanguageMode;
 }
 
 export interface SettingsPatch {
@@ -36,6 +38,7 @@ export interface SettingsPatch {
   font_family?: string;
   font_size_px?: number;
   custom_css_path?: string | null;
+  language?: AppLanguageMode;
 }
 
 export interface OpenFileResponse {
@@ -48,10 +51,15 @@ export interface SaveFileResponse {
   snapshot: string;
 }
 
+export interface FileSnapshot {
+  modified_epoch_ms: number;
+  size_bytes: number;
+  content_hash: number;
+}
+
 export interface ExternalChangeStatus {
-  changed_externally: boolean;
-  deleted_externally: boolean;
-  new_content: string | null;
+  changed: boolean;
+  latest_snapshot: FileSnapshot | null;
 }
 
 export interface RecentFileItem {
@@ -210,6 +218,8 @@ export interface RegisterPluginRequest {
 // --- API Wrappers ---
 
 export const api = {
+  getLaunchFilePaths: () => invoke<string[]>('get_launch_file_paths_cmd'),
+
   // File & Tabs
   openFile: (path: string) => invoke<OpenFileResponse>('open_file_cmd', { path }),
   saveFile: (tabId: string, content: string) => invoke<SaveFileResponse>('save_file_cmd', { tabId, content }),
@@ -253,6 +263,8 @@ export const api = {
 
   // Plugins
   registerPlugin: (request: RegisterPluginRequest) => invoke<PluginRuntime>('register_plugin_cmd', { request }),
+  registerPluginFromManifestPath: (manifestPath: string) =>
+    invoke<PluginRuntime>('register_plugin_from_manifest_path_cmd', { manifestPath }),
   activatePlugin: (pluginId: string) => invoke<PluginRuntime>('activate_plugin_cmd', { pluginId }),
   disablePlugin: (pluginId: string) => invoke<PluginRuntime>('disable_plugin_cmd', { pluginId }),
   deactivatePlugin: (pluginId: string) => invoke<PluginRuntime>('deactivate_plugin_cmd', { pluginId }),

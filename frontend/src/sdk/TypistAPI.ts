@@ -3,6 +3,43 @@ import { api } from '../api';
 import React from 'react';
 
 const pluginCommandHandlers = new Map<string, () => void | Promise<void>>();
+const pluginCleanupHandlers = new Map<string, Set<() => void | Promise<void>>>();
+let slotsContextRef: any = null;
+
+const registerPluginCleanup = (pluginId: string, cleanup: () => void | Promise<void>) => {
+  if (!pluginId || typeof cleanup !== 'function') {
+    return () => {};
+  }
+
+  const existing = pluginCleanupHandlers.get(pluginId) ?? new Set<() => void | Promise<void>>();
+  existing.add(cleanup);
+  pluginCleanupHandlers.set(pluginId, existing);
+
+  return () => {
+    const handlers = pluginCleanupHandlers.get(pluginId);
+    if (!handlers) return;
+    handlers.delete(cleanup);
+    if (handlers.size === 0) {
+      pluginCleanupHandlers.delete(pluginId);
+    }
+  };
+};
+
+export const runPluginCleanup = async (pluginId: string) => {
+  const handlers = Array.from(pluginCleanupHandlers.get(pluginId) ?? []);
+
+  for (const handler of handlers) {
+    try {
+      await handler();
+    } catch (error) {
+      console.error(`[Plugin cleanup] ${pluginId} failed:`, error);
+    }
+  }
+
+  pluginCleanupHandlers.delete(pluginId);
+  slotsContextRef?.unregisterAllPluginSlots?.(pluginId);
+  useStore.getState().unregisterPluginCommands(pluginId);
+};
 
 const touchActiveTabDirty = () => {
   const state = useStore.getState();
@@ -29,6 +66,8 @@ export const runRegisteredPluginCommand = async (commandId: string) => {
 };
 
 export const injectPluginSDK = (slotsCtx: any) => {
+  slotsContextRef = slotsCtx;
+
   // We create a global object `TypistAPI` that third-party JS can access.
   (window as any).TypistAPI = {
     // 1. Data Store Context
@@ -79,6 +118,9 @@ export const injectPluginSDK = (slotsCtx: any) => {
       },
       unregisterSlot: (position: string, pluginId: string, id: string) => {
         slotsCtx.unregisterSlot(position, pluginId, id);
+      },
+      unregisterAllSlots: (pluginId: string) => {
+        slotsCtx.unregisterAllPluginSlots(pluginId);
       }
     },
 
@@ -116,7 +158,15 @@ export const injectPluginSDK = (slotsCtx: any) => {
       execute: async (commandId: string) => runRegisteredPluginCommand(commandId),
     },
 
-    // 5. Backend IPC via permissions
+    // 5. Plugin Lifecycle Cleanup
+    lifecycle: {
+      registerCleanup: (pluginId: string, cleanup: () => void | Promise<void>) => {
+        return registerPluginCleanup(pluginId, cleanup);
+      },
+      runCleanup: async (pluginId: string) => runPluginCleanup(pluginId),
+    },
+
+    // 6. Backend IPC via permissions
     backend: {
       // Plugins should use this. The backend `plugin_permission_check_cmd` acts as a guard.
       // This MVP SDK just exposes safe wrapper methods.
@@ -128,12 +178,18 @@ export const injectPluginSDK = (slotsCtx: any) => {
       }
     },
 
-    // 6. Utilities
+    // 7. Utilities
     React: React
   };
 };
 
 export const removePluginSDK = () => {
+  const pluginIds = Array.from(pluginCleanupHandlers.keys());
+  pluginIds.forEach((pluginId) => {
+    void runPluginCleanup(pluginId);
+  });
+  pluginCleanupHandlers.clear();
   pluginCommandHandlers.clear();
+  slotsContextRef = null;
   delete (window as any).TypistAPI;
 };

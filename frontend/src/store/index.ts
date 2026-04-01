@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api, type TabSummary, type EditorSettings, type WorkspaceNode, type PluginRuntime, type RecoveryDraftMeta } from '../api';
+import { detectDefaultLanguage, isSupportedLanguage, LANGUAGE_STORAGE_KEY, type AppLanguage } from '../i18n';
 import {
   DEFAULT_KEYBINDINGS,
   type CommandDefinition,
@@ -61,6 +62,7 @@ interface EditorState {
   builtInPluginState: Record<string, boolean>;
   showLineNumbersForNonMd: boolean;
   openNonMdInSourceMode: boolean;
+  language: AppLanguage;
 
   // Actions
   loadTabs: () => Promise<void>;
@@ -82,9 +84,11 @@ interface EditorState {
   loadKeybindings: () => void;
   loadBuiltInPluginState: () => void;
   loadEditorViewPrefs: () => void;
+  loadLanguage: () => void;
   setBuiltInPluginEnabled: (pluginId: string, enabled: boolean) => void;
   setShowLineNumbersForNonMd: (enabled: boolean) => void;
   setOpenNonMdInSourceMode: (enabled: boolean) => void;
+  setLanguage: (language: AppLanguage) => void;
   updateKeybinding: (commandId: string, shortcut: string) => void;
   clearKeybinding: (commandId: string) => void;
   resetKeybindings: () => void;
@@ -130,6 +134,7 @@ export const useStore = create<EditorState>((set, get) => ({
   builtInPluginState: { ...DEFAULT_BUILTIN_PLUGIN_STATE },
   showLineNumbersForNonMd: DEFAULT_EDITOR_VIEW_PREFS.showLineNumbersForNonMd,
   openNonMdInSourceMode: DEFAULT_EDITOR_VIEW_PREFS.openNonMdInSourceMode,
+  language: detectDefaultLanguage(),
 
   loadTabs: async () => {
     try {
@@ -151,7 +156,20 @@ export const useStore = create<EditorState>((set, get) => ({
   loadSettings: async () => {
     try {
       const settings = await api.getSettings();
-      set({ settings });
+      const storedLanguage = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+      if (isSupportedLanguage(storedLanguage)) {
+        set({ settings, language: storedLanguage });
+
+        if (settings.language !== storedLanguage) {
+          void api.updateSettings({ language: storedLanguage }).catch((error) => {
+            console.error('Failed to sync language setting on boot:', error);
+          });
+        }
+      } else {
+        set({ settings, language: settings.language });
+        localStorage.setItem(LANGUAGE_STORAGE_KEY, settings.language);
+      }
+
       if (settings.theme !== 'system') {
         document.documentElement.setAttribute('data-theme', settings.theme);
       } else {
@@ -404,6 +422,21 @@ export const useStore = create<EditorState>((set, get) => ({
     }
   },
 
+  loadLanguage: () => {
+    try {
+      const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+      if (isSupportedLanguage(stored)) {
+        set({ language: stored });
+        return;
+      }
+
+      set({ language: detectDefaultLanguage() });
+    } catch (e) {
+      console.error('Failed to load language:', e);
+      set({ language: detectDefaultLanguage() });
+    }
+  },
+
   setBuiltInPluginEnabled: (pluginId: string, enabled: boolean) => {
     set((state) => {
       const next = {
@@ -435,6 +468,14 @@ export const useStore = create<EditorState>((set, get) => ({
       };
       localStorage.setItem(EDITOR_VIEW_PREFS_STORAGE_KEY, JSON.stringify(next));
       return { openNonMdInSourceMode: enabled };
+    });
+  },
+
+  setLanguage: (language: AppLanguage) => {
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    set({ language });
+    void api.updateSettings({ language }).catch((error) => {
+      console.error('Failed to sync language setting:', error);
     });
   },
 

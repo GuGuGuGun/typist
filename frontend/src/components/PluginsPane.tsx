@@ -1,7 +1,33 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store';
 import { api } from '../api';
+import { runPluginCleanup } from '../sdk/TypistAPI';
 import { Blocks, Trash2, Shield, FolderPlus, AlertCircle } from 'lucide-react';
+
+const PLUGIN_SCRIPT_ATTR = 'data-typist-plugin-id';
+
+const getPluginScripts = (pluginId: string) =>
+  Array.from(document.querySelectorAll<HTMLScriptElement>(`script[${PLUGIN_SCRIPT_ATTR}]`)).filter(
+    (script) => script.getAttribute(PLUGIN_SCRIPT_ATTR) === pluginId,
+  );
+
+const hasPluginScript = (pluginId: string) => getPluginScripts(pluginId).length > 0;
+
+const removePluginScripts = (pluginId: string) => {
+  getPluginScripts(pluginId).forEach((script) => script.remove());
+};
+
+const injectPluginScript = (pluginId: string, entry: string | null | undefined) => {
+  if (!entry) return;
+
+  removePluginScripts(pluginId);
+
+  const script = document.createElement('script');
+  script.src = entry;
+  script.async = true;
+  script.setAttribute(PLUGIN_SCRIPT_ATTR, pluginId);
+  document.body.appendChild(script);
+};
 
 const builtInPlugins = [
   {
@@ -29,20 +55,28 @@ export const PluginsPane: React.FC = () => {
     loadPlugins();
   }, [loadPlugins]);
 
+  useEffect(() => {
+    plugins
+      .filter((plugin) => plugin.status === 'active' && Boolean(plugin.manifest.entry))
+      .forEach((plugin) => {
+        if (!hasPluginScript(plugin.manifest.id)) {
+          injectPluginScript(plugin.manifest.id, plugin.manifest.entry);
+        }
+      });
+  }, [plugins]);
+
   const handleToggle = async (id: string, currentStatus: string) => {
     try {
       if (currentStatus === 'active') {
         await api.disablePlugin(id);
+        await runPluginCleanup(id);
+        removePluginScripts(id);
+        setStatusMsg(`Disabled plugin: ${id}`);
       } else {
-        await api.activatePlugin(id);
-
-        const plugin = plugins.find(p => p.manifest.id === id);
-        if (plugin?.manifest.entry) {
-          const script = document.createElement('script');
-          script.src = plugin.manifest.entry;
-          script.async = true;
-          document.body.appendChild(script);
-        }
+        await runPluginCleanup(id);
+        const runtime = await api.activatePlugin(id);
+        injectPluginScript(runtime.manifest.id, runtime.manifest.entry);
+        setStatusMsg(`Enabled plugin: ${runtime.manifest.name}`);
       }
       await loadPlugins();
     } catch (e) {
@@ -54,14 +88,21 @@ export const PluginsPane: React.FC = () => {
   const handleLoadCustom = async () => {
     try {
       const { open } = await import('@tauri-apps/plugin-dialog');
-      const manifestPath = await open({
+      const selected = await open({
         filters: [{ name: 'Plugin Manifest', extensions: ['json'] }]
       });
-      if (manifestPath) {
-        setStatusMsg(`Plugin feature requires correct formatting of plugin manifest.`);
-      }
+
+      const manifestPath = Array.isArray(selected) ? selected[0] : selected;
+      if (!manifestPath) return;
+
+      const runtime = await api.registerPluginFromManifestPath(manifestPath);
+      const activated = await api.activatePlugin(runtime.manifest.id);
+      injectPluginScript(activated.manifest.id, activated.manifest.entry);
+      await loadPlugins();
+      setStatusMsg(`Loaded plugin: ${activated.manifest.name} v${activated.manifest.version}`);
     } catch (e) {
       console.error(e);
+      setStatusMsg(`Failed: ${e}`);
     }
   };
 
@@ -163,8 +204,11 @@ export const PluginsPane: React.FC = () => {
                   title="Uninstall Plugin"
                   className="plugin-delete-btn"
                   onClick={async () => {
+                    await runPluginCleanup(plugin.manifest.id);
+                    removePluginScripts(plugin.manifest.id);
                     await api.destroyPlugin(plugin.manifest.id);
-                    loadPlugins();
+                    await loadPlugins();
+                    setStatusMsg(`Uninstalled plugin: ${plugin.manifest.id}`);
                   }}
                 >
                   <Trash2 size={16} />

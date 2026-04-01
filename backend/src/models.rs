@@ -49,6 +49,13 @@ pub enum ThemeMode {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AppLanguage {
+    Zh,
+    En,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EditorSettings {
     pub autosave_enabled: bool,
     pub autosave_interval_secs: u64,
@@ -62,12 +69,13 @@ pub struct EditorSettings {
     pub update_feed_url: Option<String>,
     pub recovery_dir: Option<String>,
     pub image_assets_dir: Option<String>,
+    pub language: AppLanguage,
 }
 
 impl Default for EditorSettings {
     fn default() -> Self {
         Self {
-            autosave_enabled: true,
+            autosave_enabled: false,
             autosave_interval_secs: 30,
             theme: ThemeMode::System,
             focus_mode_enabled: false,
@@ -79,6 +87,7 @@ impl Default for EditorSettings {
             update_feed_url: None,
             recovery_dir: None,
             image_assets_dir: None,
+            language: AppLanguage::Zh,
         }
     }
 }
@@ -97,6 +106,7 @@ pub struct SettingsPatch {
     pub update_feed_url: Option<Option<String>>,
     pub recovery_dir: Option<Option<String>>,
     pub image_assets_dir: Option<Option<String>>,
+    pub language: Option<AppLanguage>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,4 +1,5 @@
-use std::path::Path;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::errors::{BackendError, BackendResult};
@@ -6,7 +7,7 @@ use crate::models::{
     DiagnosticsReport, EditorSettings, ExportRequest, ExportResult, ExternalChangeStatus,
     GlobalSearchRequest, GlobalSearchResponse, ImagePasteRequest, ImagePasteResponse,
     LogWriteRequest, OpenFileResponse, OpenWorkspaceResponse, PluginEvent,
-    PluginPermissionCheckRequest, PluginPermissionCheckResponse, PluginRuntime,
+    PluginManifest, PluginPermissionCheckRequest, PluginPermissionCheckResponse, PluginRuntime,
     RecoveryDraftContent, RecoveryDraftMeta, RecentFileItem, RegisterPluginRequest,
     ReplaceRequest, ReplaceResult, SaveFileResponse, SaveRecoveryDraftRequest, SearchMatch,
     SearchRequest, SettingsPatch, TabSummary, UpdateCheckRequest, UpdateInfo,
@@ -203,6 +204,41 @@ impl BackendFacade {
         plugin_service::register_plugin(state.plugins_mut(), request)
     }
 
+    pub fn register_plugin_from_manifest_path(
+        &self,
+        manifest_path: String,
+    ) -> BackendResult<PluginRuntime> {
+        let manifest_file = PathBuf::from(&manifest_path);
+        let manifest_dir = manifest_file.parent().ok_or_else(|| {
+            BackendError::Plugin(format!(
+                "manifest path has no parent directory: {manifest_path}"
+            ))
+        })?;
+
+        let manifest_text = fs::read_to_string(&manifest_path).map_err(|error| {
+            BackendError::Plugin(format!(
+                "failed to read plugin manifest {}: {error}",
+                manifest_file.display()
+            ))
+        })?;
+
+        let mut manifest: PluginManifest = serde_json::from_str(&manifest_text)
+            .map_err(|error| BackendError::Plugin(format!("invalid plugin manifest json: {error}")))?;
+
+        manifest.entry = normalize_plugin_entry(&manifest.entry, manifest_dir)?;
+
+        let installed_path = manifest_dir
+            .canonicalize()
+            .unwrap_or_else(|_| manifest_dir.to_path_buf())
+            .to_string_lossy()
+            .to_string();
+
+        self.register_plugin(RegisterPluginRequest {
+            manifest,
+            installed_path,
+        })
+    }
+
     pub fn activate_plugin(&self, plugin_id: String) -> BackendResult<PluginRuntime> {
         let mut state = self.lock_state()?;
         plugin_service::activate_plugin(state.plugins_mut(), plugin_id.as_str())
@@ -345,6 +381,48 @@ impl BackendFacade {
 
     fn lock_state(&self) -> BackendResult<MutexGuard<'_, AppState>> {
         self.state.lock().map_err(|_| BackendError::StatePoisoned)
+    }
+}
+
+fn normalize_plugin_entry(entry: &str, manifest_dir: &Path) -> BackendResult<String> {
+    let trimmed = entry.trim();
+    if trimmed.is_empty() {
+        return Err(BackendError::Plugin(
+            "plugin manifest entry must not be empty".to_string(),
+        ));
+    }
+
+    if trimmed.starts_with("http://")
+        || trimmed.starts_with("https://")
+        || trimmed.starts_with("file://")
+    {
+        return Ok(trimmed.to_string());
+    }
+
+    let entry_path = PathBuf::from(trimmed);
+    let resolved_path = if entry_path.is_absolute() {
+        entry_path
+    } else {
+        manifest_dir.join(entry_path)
+    };
+
+    if !resolved_path.exists() {
+        return Err(BackendError::Plugin(format!(
+            "plugin entry not found: {}",
+            resolved_path.display()
+        )));
+    }
+
+    let absolute_path = resolved_path
+        .canonicalize()
+        .unwrap_or(resolved_path)
+        .to_string_lossy()
+        .replace('\\', "/");
+
+    if absolute_path.starts_with('/') {
+        Ok(format!("file://{absolute_path}"))
+    } else {
+        Ok(format!("file:///{absolute_path}"))
     }
 }
 
@@ -570,6 +648,15 @@ pub fn register_plugin_cmd(
     request: RegisterPluginRequest,
 ) -> Result<PluginRuntime, String> {
     to_invoke_result(backend.register_plugin(request))
+}
+
+#[cfg(feature = "tauri-integration")]
+#[tauri::command]
+pub fn register_plugin_from_manifest_path_cmd(
+    backend: tauri::State<'_, BackendFacade>,
+    manifest_path: String,
+) -> Result<PluginRuntime, String> {
+    to_invoke_result(backend.register_plugin_from_manifest_path(manifest_path))
 }
 
 #[cfg(feature = "tauri-integration")]

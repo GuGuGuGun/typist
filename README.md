@@ -10,6 +10,8 @@
 - WYSIWYG + 源码双模式：支持在富文本编辑与纯文本源码间快捷切换（Ctrl+/）。
 - 常用 Markdown 增强：GFM、代码高亮、Mermaid、KaTeX。
 - 本地优先：文件打开/保存、最近文件、多标签、工作区文件树。
+- 中英双语界面：设置中可切换中文 / English。
+- 系统文件直开：打包版支持关联 md/markdown/txt，双击即可用 Typist 打开。
 - 可扩展架构：插件生命周期、事件总线、UI 插槽机制。
 
 ## 当前功能概览
@@ -26,11 +28,16 @@
   - KaTeX 数学公式
 - 文件与系统能力
   - 打开 / 保存 / 另存为
+  - 外部文件变更检测（保留当前版本 / 重新加载磁盘内容）
   - 最近文件
   - 工作区文件树与全局搜索
+  - 支持从启动参数自动打开文件
+  - 单实例文件转发（已运行时再次双击文件，会发送到现有窗口打开）
+  - 打包版文件关联（md / markdown / txt）
   - 导出 HTML / PDF
   - 崩溃恢复与更新检查
 - 可定制能力
+  - 中文 / English 语言切换
   - 亮色 / 暗色主题
   - 焦点模式 / 打字机模式
   - 插件管理与基础 SDK
@@ -83,9 +90,65 @@ npm run tauri:dev
 npm --prefix frontend run build
 ```
 
+## 编译与打包教程（安装包）
+
+以下步骤用于从源码构建可分发的 Windows 安装包。
+
+### 1) 先决条件
+
+- 已完成上面的环境安装与依赖安装步骤。
+- 建议先执行一次开发模式，确认本机 Tauri 环境可正常运行：
+
+```bash
+npm run tauri:dev
+```
+
+### 2) 一键打包（默认配置）
+
+```bash
+npm run tauri:build
+```
+
+说明：当前 `src-tauri/tauri.conf.json` 中 `bundle.targets` 为 `all`，会按本机环境生成可用的安装包类型。
+
+### 3) 指定安装包类型（可选）
+
+只打 NSIS（`.exe` 安装程序）：
+
+```bash
+npm run tauri -- build --bundles nsis
+```
+
+只打 MSI（`.msi` 安装包）：
+
+```bash
+npm run tauri -- build --bundles msi
+```
+
+### 4) 产物位置
+
+- 安装包输出目录：`src-tauri/target/release/bundle/`
+- 常见子目录：
+  - `src-tauri/target/release/bundle/nsis/`
+  - `src-tauri/target/release/bundle/msi/`
+
+### 5) 常见问题
+
+- 问题：开发模式正常，但打包失败。
+  - 处理：先执行 `npm --prefix frontend run build`，确认前端可单独构建成功，再执行 `npm run tauri:build`。
+- 问题：希望验证文件关联是否生效。
+  - 处理：必须安装打包后的应用后再验证；`npm run tauri:dev` 不会写入系统文件关联。
+
+## 文件关联说明（Windows）
+
+- 在开发模式（`npm run tauri:dev`）下，不会写入系统文件关联。
+- 需要在打包安装后生效（`src-tauri/tauri.conf.json` 已配置 `md`、`markdown`、`txt`）。
+- 生效后可直接通过系统双击打开文档，Typist 会自动载入文件。
+
 ## 常用快捷键（节选）
 
 - Ctrl+O：打开文件
+- Ctrl+Shift+N：新建窗口
 - Ctrl+S：保存
 - Ctrl+Shift+S：另存为
 - Ctrl+W：关闭标签
@@ -95,10 +158,11 @@ npm --prefix frontend run build
 ## 开发状态
 
 详见 [docs/PRD.md](docs/PRD.md)。
+插件构建说明见 [docs/PLUGIN_BUILD.md](docs/PLUGIN_BUILD.md)。
 
 当前里程碑聚焦：
-- 完成 MVP 交互闭环与体验打磨。
-- 持续完善插件开发文档与第三方扩展生态。
+- 完善跨平台体验与稳定性验证。
+- 持续完善第三方插件权限强校验与安全治理。
 
 ## 贡献指南
 
@@ -112,9 +176,9 @@ npm --prefix frontend run build
 
 ## Roadmap（短期）
 
-- 自动保存调度策略完善
-- 插件开发文档补齐
-- 多窗口与跨平台适配
+- 性能基准与自动化验收（启动、内存、加载、滚动）
+- 插件权限强校验与来源签名
+- 跨平台适配（macOS / Linux）
 
 ## License
 

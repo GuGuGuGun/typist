@@ -12,6 +12,7 @@ import React, { useEffect } from 'react';
 import { useStore } from '../store';
 import { api } from '../api';
 import { runRegisteredPluginCommand } from '../sdk/TypistAPI';
+import { getLocaleMessages, pickRandomStartupCopy } from '../i18n';
 
 // Styles for plugins
 import 'prismjs/themes/prism-tomorrow.css';
@@ -26,6 +27,56 @@ const isMarkdownFile = (filePath?: string) => {
 const getLineByCursor = (content: string, cursor: number) => {
   const safeCursor = Math.max(0, Math.min(cursor, content.length));
   return content.slice(0, safeCursor).split(/\r?\n/).length;
+};
+
+const EmptyEditorState: React.FC = () => {
+  const language = useStore(state => state.language);
+  const openFile = useStore(state => state.openFile);
+  const loadWorkspace = useStore(state => state.loadWorkspace);
+  const startup = getLocaleMessages(language).startup;
+  const randomCopy = React.useMemo(() => pickRandomStartupCopy(language), [language]);
+
+  const openFileFromDialog = async () => {
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const selected = await open({
+      multiple: false,
+      filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }],
+    });
+
+    if (!selected || Array.isArray(selected)) {
+      return;
+    }
+
+    await openFile(selected);
+  };
+
+  const openFolderFromDialog = async () => {
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const selected = await open({ directory: true });
+    if (!selected || Array.isArray(selected)) {
+      return;
+    }
+
+    await loadWorkspace(selected);
+  };
+
+  return (
+    <div className="editor-empty-state">
+      <p className="editor-empty-title">{startup.editorEmptyTitle}</p>
+      <p className="editor-empty-copy">{randomCopy}</p>
+      <div className="editor-empty-actions" role="group" aria-label={startup.openMethodsTitle}>
+        <span className="editor-empty-actions-label">{startup.openMethodsTitle}</span>
+        <button className="editor-empty-link" onClick={() => void openFileFromDialog()}>
+          {startup.openFileLink}
+        </button>
+        <span className="editor-empty-dot">•</span>
+        <button className="editor-empty-link" onClick={() => void openFolderFromDialog()}>
+          {startup.openFolderLink}
+        </button>
+      </div>
+      <p className="editor-empty-hint">{startup.editorEmptyHint}</p>
+    </div>
+  );
 };
 
 const EditorContent: React.FC = () => {
@@ -63,11 +114,7 @@ const EditorContent: React.FC = () => {
   }, [activeTabId, activeTab?.is_dirty]);
 
   if (!activeTabId) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>
-        Press Ctrl+O to open a file or use the Sidebar.
-      </div>
-    );
+    return <EmptyEditorState />;
   }
 
   // To properly reset milkdown content across tabs, we could key the provider to activeTabId
@@ -123,11 +170,7 @@ const SourceEditor: React.FC = () => {
   };
 
   if (!activeTabId) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>
-        Press Ctrl+O to open a file or use the Sidebar.
-      </div>
-    );
+    return <EmptyEditorState />;
   }
 
   return (
@@ -167,6 +210,8 @@ export const EditorWrapper: React.FC = () => {
   const openNonMdInSourceMode = useStore(state => state.openNonMdInSourceMode);
   const toggleSourceMode = useStore(state => state.toggleSourceMode);
   const pluginCommands = useStore(state => state.pluginCommands);
+  const language = useStore(state => state.language);
+  const menuText = getLocaleMessages(language).editorMenu;
   const [menu, setMenu] = React.useState<{ x: number; y: number } | null>(null);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
   const forceSourceMode = Boolean(openNonMdInSourceMode && activeTab?.path && !isMarkdownFile(activeTab.path));
@@ -270,13 +315,13 @@ export const EditorWrapper: React.FC = () => {
             e.stopPropagation();
           }}
         >
-          <button className="context-menu-item" onClick={() => void runMenuAction(() => document.execCommand('undo'))}>撤回</button>
-          <button className="context-menu-item" onClick={() => void runMenuAction(() => document.execCommand('redo'))}>重做</button>
-          <button className="context-menu-item" onClick={() => void runMenuAction(() => document.execCommand('cut'))}>剪切</button>
-          <button className="context-menu-item" onClick={() => void runMenuAction(() => document.execCommand('copy'))}>复制</button>
-          <button className="context-menu-item" onClick={() => void runMenuAction(() => document.execCommand('paste'))}>粘贴</button>
-          <button className="context-menu-item" onClick={() => void runMenuAction(() => document.execCommand('selectAll'))}>全选</button>
-          <button className="context-menu-item" onClick={() => void runMenuAction(() => toggleSourceMode())}>切换源码模式</button>
+          <button className="context-menu-item" onClick={() => void runMenuAction(() => document.execCommand('undo'))}>{menuText.undo}</button>
+          <button className="context-menu-item" onClick={() => void runMenuAction(() => document.execCommand('redo'))}>{menuText.redo}</button>
+          <button className="context-menu-item" onClick={() => void runMenuAction(() => document.execCommand('cut'))}>{menuText.cut}</button>
+          <button className="context-menu-item" onClick={() => void runMenuAction(() => document.execCommand('copy'))}>{menuText.copy}</button>
+          <button className="context-menu-item" onClick={() => void runMenuAction(() => document.execCommand('paste'))}>{menuText.paste}</button>
+          <button className="context-menu-item" onClick={() => void runMenuAction(() => document.execCommand('selectAll'))}>{menuText.selectAll}</button>
+          <button className="context-menu-item" onClick={() => void runMenuAction(() => toggleSourceMode())}>{menuText.toggleSourceMode}</button>
           {pluginCommands.length > 0 && <div className="context-menu-separator" />}
           {pluginCommands.map((command) => (
             <button
@@ -289,7 +334,7 @@ export const EditorWrapper: React.FC = () => {
                 }
               })}
             >
-              插件: {command.label}
+              {menuText.pluginPrefix}: {command.label}
             </button>
           ))}
         </div>

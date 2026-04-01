@@ -10,6 +10,7 @@ export const UNBOUND_SHORTCUT = '__UNBOUND__';
 export const BUILT_IN_COMMANDS: CommandDefinition[] = [
   { id: 'file.open', label: '打开文件', category: '文件' },
   { id: 'file.new', label: '新建文件', category: '文件' },
+  { id: 'file.newWindow', label: '新建窗口', category: '文件' },
   { id: 'file.save', label: '保存', category: '文件' },
   { id: 'file.saveAs', label: '另存为', category: '文件' },
   { id: 'file.closeTab', label: '关闭标签', category: '文件' },
@@ -28,6 +29,7 @@ export const BUILT_IN_COMMANDS: CommandDefinition[] = [
 export const DEFAULT_KEYBINDINGS: Record<string, string> = {
   'file.open': 'Ctrl+O',
   'file.new': 'Ctrl+N',
+  'file.newWindow': 'Ctrl+Shift+N',
   'file.save': 'Ctrl+S',
   'file.saveAs': 'Ctrl+Shift+S',
   'file.closeTab': 'Ctrl+W',

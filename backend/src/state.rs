@@ -209,6 +209,10 @@ impl AppState {
             self.settings.image_assets_dir = dir;
         }
 
+        if let Some(language) = patch.language {
+            self.settings.language = language;
+        }
+
         self.settings.clone()
     }
 

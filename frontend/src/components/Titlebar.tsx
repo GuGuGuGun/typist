@@ -7,11 +7,14 @@ import {
   Minus,
   Search,
   Settings2,
+  SquarePlus,
   Square,
   X,
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store';
+import { openNewAppWindow } from '../commands/windowActions';
+import { getLocaleMessages } from '../i18n';
 
 const appWindow = getCurrentWindow();
 
@@ -24,6 +27,8 @@ export const Titlebar: React.FC = () => {
   const toggleExport = useStore(state => state.toggleExport);
   const isSourceMode = useStore(state => state.isSourceMode);
   const toggleSourceMode = useStore(state => state.toggleSourceMode);
+  const language = useStore(state => state.language);
+  const text = getLocaleMessages(language).titlebar;
 
   useEffect(() => {
     // Check initial state
@@ -73,33 +78,37 @@ export const Titlebar: React.FC = () => {
       </div>
 
       <div className="titlebar-commandbar">
-        <button className="command-btn titlebar-no-drag" onClick={toggleSidebar} title="切换侧栏 (Ctrl+Shift+O)">
+        <button className="command-btn titlebar-no-drag" onClick={toggleSidebar} title={text.sidebarTitle}>
           <Menu size={14} />
-          <span>侧栏</span>
+          <span>{text.sidebar}</span>
         </button>
-        <button className="command-btn titlebar-no-drag" onClick={toggleFindReplace} title="查找替换 (Ctrl+F / Ctrl+H)">
+        <button className="command-btn titlebar-no-drag" onClick={toggleFindReplace} title={text.findTitle}>
           <FileSearch size={14} />
-          <span>查找</span>
+          <span>{text.find}</span>
         </button>
-        <button className="command-btn titlebar-no-drag" onClick={toggleGlobalSearch} title="全局搜索">
+        <button className="command-btn titlebar-no-drag" onClick={toggleGlobalSearch} title={text.searchTitle}>
           <Search size={14} />
-          <span>搜索</span>
+          <span>{text.search}</span>
         </button>
-        <button className="command-btn titlebar-no-drag" onClick={toggleExport} title="导出">
+        <button className="command-btn titlebar-no-drag" onClick={() => void openNewAppWindow()} title={text.newWindowTitle}>
+          <SquarePlus size={14} />
+          <span>{text.newWindow}</span>
+        </button>
+        <button className="command-btn titlebar-no-drag" onClick={toggleExport} title={text.exportTitle}>
           <FileOutput size={14} />
-          <span>导出</span>
-        </button>
-              <button className="command-btn titlebar-no-drag" onClick={() => openPreferences('settings')} title="设置">
-          <Settings2 size={14} />
-          <span>设置</span>
+          <span>{text.export}</span>
         </button>
         <button
           className={`command-btn titlebar-no-drag ${isSourceMode ? 'active' : ''}`}
           onClick={toggleSourceMode}
-          title="切换源码模式 (Ctrl+/)"
+          title={text.sourceTitle}
         >
           <Code size={14} />
-          <span>{isSourceMode ? '所见即所得' : '源码'}</span>
+          <span>{isSourceMode ? text.wysiwyg : text.source}</span>
+        </button>
+        <button className="command-btn titlebar-no-drag" onClick={() => openPreferences('settings')} title={text.settingsTitle}>
+          <Settings2 size={14} />
+          <span>{text.settings}</span>
         </button>
       </div>
 
@@ -113,7 +122,7 @@ export const Titlebar: React.FC = () => {
         <button
           className="window-btn titlebar-no-drag"
           onClick={() => void runWindowAction(() => appWindow.toggleMaximize())}
-          title={isMaximized ? '还原窗口' : '最大化'}
+          title={isMaximized ? text.restoreWindow : text.maximizeWindow}
         >
           <Square size={13} />
         </button>
