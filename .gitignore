@@ -1,0 +1,23 @@
+# Workspace dependencies
+/node_modules/
+**/node_modules/
+
+# Frontend artifacts
+/frontend/node_modules/
+/frontend/dist/
+
+# Rust build artifacts
+/backend/target/
+/src-tauri/target/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
