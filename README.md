@@ -8,11 +8,14 @@
 
 - 低资源占用：Tauri + Rust 后端，面向轻量桌面应用。
 - WYSIWYG + 源码双模式：支持在富文本编辑与纯文本源码间快捷切换（Ctrl+/）。
+- 富文本增强交互：表格悬浮工具条、选区文本快捷工具条（可在设置中开关）。
 - 常用 Markdown 增强：GFM、代码高亮、Mermaid、KaTeX。
 - 本地优先：文件打开/保存、最近文件、多标签、工作区文件树。
 - 中英双语界面：设置中可切换中文 / English。
 - 系统文件直开：打包版支持关联 md/markdown/txt，双击即可用 Typist 打开。
 - 可扩展架构：插件生命周期、事件总线、UI 插槽机制。
+- 更安全插件运行：外部插件通过 Web Worker Sandbox 执行，降低主线程脚本注入风险。
+- 工业化导出链路：内置 Pandoc 导出管线，支持多格式导出。
 
 ## 当前功能概览
 
@@ -34,12 +37,15 @@
   - 支持从启动参数自动打开文件
   - 单实例文件转发（已运行时再次双击文件，会发送到现有窗口打开）
   - 打包版文件关联（md / markdown / txt）
-  - 导出 HTML / PDF
+  - 导出 HTML / PDF / DOCX / LaTeX / EPUB / Reveal.js（Pandoc）
   - 崩溃恢复与更新检查
 - 可定制能力
   - 中文 / English 语言切换
   - 亮色 / 暗色主题
+  - 自定义 CSS 主题文件动态注入
   - 焦点模式 / 打字机模式
+  - 非 Markdown 默认源码模式、非 Markdown 行号显示
+  - 富文本选区工具条开关
   - 插件管理与基础 SDK
 
 ## 技术栈
@@ -68,6 +74,7 @@
 - Rust 1.77+
 - Windows 开发环境（已在当前阶段优先验证）
 - Tauri 2 依赖环境（WebView2、MSVC Build Tools 等）
+- Pandoc（用于 PDF / DOCX / LaTeX / EPUB / Reveal.js 导出；HTML 导出不依赖）
 
 ### 2) 安装依赖
 
@@ -89,6 +96,18 @@ npm run tauri:dev
 ```bash
 npm --prefix frontend run build
 ```
+
+### 5) 后端编译检查
+
+```bash
+cargo check --manifest-path backend/Cargo.toml
+```
+
+## 导出依赖说明
+
+- `HTML` 导出使用内置渲染链路，不依赖 Pandoc。
+- `PDF / DOCX / LaTeX / EPUB / Reveal.js` 通过 Pandoc 执行导出。
+- 若导出时报错提示找不到 Pandoc，请先安装并确保 `pandoc` 可在系统 PATH 中直接调用。
 
 ## 编译与打包教程（安装包）
 
@@ -180,6 +199,9 @@ npm run tauri -- build --bundles msi
 - 插件权限强校验与来源签名
 - 跨平台适配（macOS / Linux）
 
+## 友链
+
+- 学AI上L站喵，[LinuxDo](https://linux.do/)
 ## License
 
 MIT License，详见 [LICENSE](LICENSE)。
