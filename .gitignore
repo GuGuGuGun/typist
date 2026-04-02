@@ -17,6 +17,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 /docs/PRD.md
+/docs/重构文档.md
+/specs/
 # OS/editor
 .DS_Store
 Thumbs.db

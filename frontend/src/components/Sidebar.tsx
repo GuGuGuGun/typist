@@ -1,20 +1,33 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store';
+import { useShallow } from 'zustand/react/shallow';
 import { api } from '../api';
 import { Clock } from 'lucide-react';
 import { FILE_TREE_START_CREATE_EVENT, FileTree } from './FileTree';
 import { getLocaleMessages, pickRandomStartupCopy } from '../i18n';
 
 export const Sidebar: React.FC = () => {
-  const isSidebarOpen = useStore(state => state.isSidebarOpen);
-  const recentFiles = useStore(state => state.recentFiles);
-  const tabs = useStore(state => state.tabs);
-  const loadRecentFiles = useStore(state => state.loadRecentFiles);
-  const openFile = useStore(state => state.openFile);
-  const closeTab = useStore(state => state.closeTab);
-  const loadWorkspace = useStore(state => state.loadWorkspace);
-  const workspaceRoot = useStore(state => state.workspaceRoot);
-  const language = useStore(state => state.language);
+  const {
+    isSidebarOpen,
+    recentFiles,
+    tabs,
+    loadRecentFiles,
+    openFile,
+    closeTab,
+    loadWorkspace,
+    workspaceRoot,
+    language,
+  } = useStore(useShallow((state) => ({
+    isSidebarOpen: state.isSidebarOpen,
+    recentFiles: state.recentFiles,
+    tabs: state.tabs,
+    loadRecentFiles: state.loadRecentFiles,
+    openFile: state.openFile,
+    closeTab: state.closeTab,
+    loadWorkspace: state.loadWorkspace,
+    workspaceRoot: state.workspaceRoot,
+    language: state.language,
+  })));
 
   const [activeTab, setActiveTab] = useState<'explorer' | 'recent'>('explorer');
   const [menu, setMenu] = useState<{ x: number; y: number; path: string } | null>(null);

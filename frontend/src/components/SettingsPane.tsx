@@ -10,8 +10,10 @@ export const SettingsPane: React.FC = () => {
   const setLanguage = useStore(state => state.setLanguage);
   const showLineNumbersForNonMd = useStore(state => state.showLineNumbersForNonMd);
   const openNonMdInSourceMode = useStore(state => state.openNonMdInSourceMode);
+  const showFloatingTextToolbar = useStore(state => state.showFloatingTextToolbar);
   const setShowLineNumbersForNonMd = useStore(state => state.setShowLineNumbersForNonMd);
   const setOpenNonMdInSourceMode = useStore(state => state.setOpenNonMdInSourceMode);
+  const setShowFloatingTextToolbar = useStore(state => state.setShowFloatingTextToolbar);
   const text = getLocaleMessages(language).settings;
 
   if (!settings) return null;
@@ -23,6 +25,26 @@ export const SettingsPane: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+  };
+
+  const pickCustomCss = async () => {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const selected = await open({
+        multiple: false,
+        filters: [{ name: 'CSS Theme', extensions: ['css'] }],
+      });
+
+      const selectedPath = Array.isArray(selected) ? selected[0] : selected;
+      if (!selectedPath) return;
+      await handleUpdate({ custom_css_path: selectedPath });
+    } catch (error) {
+      console.error('Failed to pick custom css:', error);
+    }
+  };
+
+  const clearCustomCss = async () => {
+    await handleUpdate({ custom_css_path: null });
   };
 
   return (
@@ -50,6 +72,17 @@ export const SettingsPane: React.FC = () => {
           <option value="light">{text.themeLight}</option>
           <option value="dark">{text.themeDark}</option>
         </select>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
+        <label style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>{text.customCssLabel}</label>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="default-btn" onClick={() => void pickCustomCss()}>{text.customCssChoose}</button>
+          <button className="default-btn" onClick={() => void clearCustomCss()}>{text.customCssClear}</button>
+        </div>
+        <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-muted)' }}>
+          {settings.custom_css_path ? `${text.customCssCurrent}: ${settings.custom_css_path}` : text.customCssEmpty}
+        </p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
@@ -94,6 +127,21 @@ export const SettingsPane: React.FC = () => {
         </label>
         <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-muted)' }}>
           {text.openNonMdSourceDesc}
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
+        <label style={{ fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--text-primary)' }}>
+          <input
+            type="checkbox"
+            checked={showFloatingTextToolbar}
+            onChange={(e) => setShowFloatingTextToolbar(e.target.checked)}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)', cursor: 'pointer' }}
+          />
+          {text.floatingToolbarLabel}
+        </label>
+        <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-muted)' }}>
+          {text.floatingToolbarDesc}
         </p>
       </div>
     </div>

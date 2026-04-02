@@ -69,6 +69,7 @@ pub fn run() {
             typist_backend::commands::check_external_modification_cmd,
             typist_backend::commands::list_recent_files_cmd,
             typist_backend::commands::get_settings_cmd,
+            typist_backend::commands::get_custom_css_cmd,
             typist_backend::commands::update_settings_cmd,
             typist_backend::commands::search_in_document_cmd,
             typist_backend::commands::replace_in_document_cmd,

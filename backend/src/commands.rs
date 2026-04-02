@@ -142,6 +142,20 @@ impl BackendFacade {
         Ok(state.settings())
     }
 
+    pub fn get_custom_css(&self) -> BackendResult<Option<String>> {
+        let custom_css_path = {
+            let state = self.lock_state()?;
+            state.settings().custom_css_path
+        };
+
+        let Some(path) = custom_css_path else {
+            return Ok(None);
+        };
+
+        let css = file_service::read_custom_css_file(path.as_str())?;
+        Ok(Some(css))
+    }
+
     pub fn update_settings(&self, patch: SettingsPatch) -> BackendResult<EditorSettings> {
         let mut state = self.lock_state()?;
         Ok(state.update_settings(patch))
@@ -518,6 +532,14 @@ pub fn get_settings_cmd(
     backend: tauri::State<'_, BackendFacade>,
 ) -> Result<EditorSettings, String> {
     to_invoke_result(backend.get_settings())
+}
+
+#[cfg(feature = "tauri-integration")]
+#[tauri::command]
+pub fn get_custom_css_cmd(
+    backend: tauri::State<'_, BackendFacade>,
+) -> Result<Option<String>, String> {
+    to_invoke_result(backend.get_custom_css())
 }
 
 #[cfg(feature = "tauri-integration")]

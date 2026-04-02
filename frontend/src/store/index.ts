@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create, type StateCreator } from 'zustand';
 import { api, type TabSummary, type EditorSettings, type WorkspaceNode, type PluginRuntime, type RecoveryDraftMeta } from '../api';
 import { detectDefaultLanguage, isSupportedLanguage, LANGUAGE_STORAGE_KEY, type AppLanguage } from '../i18n';
 import {
@@ -22,11 +22,13 @@ const DEFAULT_BUILTIN_PLUGIN_STATE: Record<string, boolean> = {
 interface EditorViewPrefs {
   showLineNumbersForNonMd: boolean;
   openNonMdInSourceMode: boolean;
+  showFloatingTextToolbar: boolean;
 }
 
 const DEFAULT_EDITOR_VIEW_PREFS: EditorViewPrefs = {
   showLineNumbersForNonMd: true,
   openNonMdInSourceMode: true,
+  showFloatingTextToolbar: true,
 };
 
 interface PluginCommand {
@@ -36,37 +38,17 @@ interface PluginCommand {
   category: string;
 }
 
-interface EditorState {
+interface EditorDocumentSlice {
   tabs: TabSummary[];
   recentFiles: { path: string; last_opened_at: string }[];
   activeTabId: string | null;
   activeContent: string;
   tabContents: Record<string, string>;
-  settings: EditorSettings | null;
-  isSourceMode: boolean;
-  isSidebarOpen: boolean;
-  isFindReplaceOpen: boolean;
-  isPreferencesOpen: boolean;
-  preferencesActiveTab: 'settings' | 'keybindings' | 'plugins';
-  isGlobalSearchOpen: boolean;
-  isExportOpen: boolean;
-  workspaceRoot: string | null;
-  workspaceTree: WorkspaceNode | null;
-  plugins: PluginRuntime[];
   recoveryDrafts: RecoveryDraftMeta[];
   dirtyCloseTabId: string | null;
-  keybindings: Record<string, string>;
-  pluginCommands: PluginCommand[];
   pendingCloseQueue: string[];
-  sidebarWidth: number;
-  builtInPluginState: Record<string, boolean>;
-  showLineNumbersForNonMd: boolean;
-  openNonMdInSourceMode: boolean;
-  language: AppLanguage;
 
-  // Actions
   loadTabs: () => Promise<void>;
-  loadSettings: () => Promise<void>;
   loadRecentFiles: () => Promise<void>;
   openFile: (path: string) => Promise<string | undefined>;
   saveFile: (tabId: string) => Promise<void>;
@@ -81,6 +63,21 @@ interface EditorState {
   switchTab: (tabId: string) => Promise<void>;
   setActiveContent: (content: string) => void;
   markTabDirty: (tabId: string, isDirty: boolean) => Promise<void>;
+  loadRecoveryDrafts: () => Promise<void>;
+}
+
+interface PreferencesSlice {
+  settings: EditorSettings | null;
+  plugins: PluginRuntime[];
+  keybindings: Record<string, string>;
+  pluginCommands: PluginCommand[];
+  builtInPluginState: Record<string, boolean>;
+  showLineNumbersForNonMd: boolean;
+  openNonMdInSourceMode: boolean;
+  showFloatingTextToolbar: boolean;
+  language: AppLanguage;
+
+  loadSettings: () => Promise<void>;
   loadKeybindings: () => void;
   loadBuiltInPluginState: () => void;
   loadEditorViewPrefs: () => void;
@@ -88,6 +85,7 @@ interface EditorState {
   setBuiltInPluginEnabled: (pluginId: string, enabled: boolean) => void;
   setShowLineNumbersForNonMd: (enabled: boolean) => void;
   setOpenNonMdInSourceMode: (enabled: boolean) => void;
+  setShowFloatingTextToolbar: (enabled: boolean) => void;
   setLanguage: (language: AppLanguage) => void;
   updateKeybinding: (commandId: string, shortcut: string) => void;
   clearKeybinding: (commandId: string) => void;
@@ -95,9 +93,25 @@ interface EditorState {
   getCommandsForKeybinding: () => CommandDefinition[];
   registerPluginCommand: (command: PluginCommand) => void;
   unregisterPluginCommands: (pluginId: string) => void;
-  loadWorkspace: (path?: string) => Promise<void>;
   loadPlugins: () => Promise<void>;
-  loadRecoveryDrafts: () => Promise<void>;
+}
+
+interface WorkspaceSlice {
+  workspaceRoot: string | null;
+  workspaceTree: WorkspaceNode | null;
+  loadWorkspace: (path?: string) => Promise<void>;
+}
+
+interface UiSlice {
+  isSourceMode: boolean;
+  isSidebarOpen: boolean;
+  isFindReplaceOpen: boolean;
+  isPreferencesOpen: boolean;
+  preferencesActiveTab: 'settings' | 'keybindings' | 'plugins';
+  isGlobalSearchOpen: boolean;
+  isExportOpen: boolean;
+  sidebarWidth: number;
+
   setSidebarWidth: (width: number) => void;
   openPreferences: (tab?: 'settings' | 'keybindings' | 'plugins') => void;
   closePreferences: () => void;
@@ -108,33 +122,18 @@ interface EditorState {
   toggleExport: () => void;
 }
 
-export const useStore = create<EditorState>((set, get) => ({
+type EditorState = EditorDocumentSlice & PreferencesSlice & WorkspaceSlice & UiSlice;
+type StoreSlice<TSlice> = StateCreator<EditorState, [], [], TSlice>;
+
+const createEditorDocumentSlice: StoreSlice<EditorDocumentSlice> = (set, get) => ({
   tabs: [],
   recentFiles: [],
   activeTabId: null,
   activeContent: '',
   tabContents: {},
-  settings: null,
-  isSourceMode: false,
-  isSidebarOpen: false,
-  isFindReplaceOpen: false,
-  isPreferencesOpen: false,
-  preferencesActiveTab: 'settings',
-  isGlobalSearchOpen: false,
-  isExportOpen: false,
-  workspaceRoot: null,
-  workspaceTree: null,
-  plugins: [],
   recoveryDrafts: [],
   dirtyCloseTabId: null,
-  keybindings: { ...DEFAULT_KEYBINDINGS },
-  pluginCommands: [],
   pendingCloseQueue: [],
-  sidebarWidth: 260,
-  builtInPluginState: { ...DEFAULT_BUILTIN_PLUGIN_STATE },
-  showLineNumbersForNonMd: DEFAULT_EDITOR_VIEW_PREFS.showLineNumbersForNonMd,
-  openNonMdInSourceMode: DEFAULT_EDITOR_VIEW_PREFS.openNonMdInSourceMode,
-  language: detectDefaultLanguage(),
 
   loadTabs: async () => {
     try {
@@ -150,34 +149,6 @@ export const useStore = create<EditorState>((set, get) => ({
       });
     } catch (e) {
       console.error('Failed to load tabs:', e);
-    }
-  },
-
-  loadSettings: async () => {
-    try {
-      const settings = await api.getSettings();
-      const storedLanguage = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-      if (isSupportedLanguage(storedLanguage)) {
-        set({ settings, language: storedLanguage });
-
-        if (settings.language !== storedLanguage) {
-          void api.updateSettings({ language: storedLanguage }).catch((error) => {
-            console.error('Failed to sync language setting on boot:', error);
-          });
-        }
-      } else {
-        set({ settings, language: settings.language });
-        localStorage.setItem(LANGUAGE_STORAGE_KEY, settings.language);
-      }
-
-      if (settings.theme !== 'system') {
-        document.documentElement.setAttribute('data-theme', settings.theme);
-      } else {
-        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-      }
-    } catch (e) {
-      console.error('Failed to load settings:', e);
     }
   },
 
@@ -366,6 +337,56 @@ export const useStore = create<EditorState>((set, get) => ({
     }
   },
 
+  loadRecoveryDrafts: async () => {
+    try {
+      const recoveryDrafts = await api.listRecoveryDrafts();
+      set({ recoveryDrafts });
+    } catch (e) {
+      console.error('Failed to load recovery drafts:', e);
+    }
+  },
+
+});
+
+const createPreferencesSlice: StoreSlice<PreferencesSlice> = (set, get) => ({
+  settings: null,
+  plugins: [],
+  keybindings: { ...DEFAULT_KEYBINDINGS },
+  pluginCommands: [],
+  builtInPluginState: { ...DEFAULT_BUILTIN_PLUGIN_STATE },
+  showLineNumbersForNonMd: DEFAULT_EDITOR_VIEW_PREFS.showLineNumbersForNonMd,
+  openNonMdInSourceMode: DEFAULT_EDITOR_VIEW_PREFS.openNonMdInSourceMode,
+  showFloatingTextToolbar: DEFAULT_EDITOR_VIEW_PREFS.showFloatingTextToolbar,
+  language: detectDefaultLanguage(),
+
+  loadSettings: async () => {
+    try {
+      const settings = await api.getSettings();
+      const storedLanguage = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+      if (isSupportedLanguage(storedLanguage)) {
+        set({ settings, language: storedLanguage });
+
+        if (settings.language !== storedLanguage) {
+          void api.updateSettings({ language: storedLanguage }).catch((error) => {
+            console.error('Failed to sync language setting on boot:', error);
+          });
+        }
+      } else {
+        set({ settings, language: settings.language });
+        localStorage.setItem(LANGUAGE_STORAGE_KEY, settings.language);
+      }
+
+      if (settings.theme !== 'system') {
+        document.documentElement.setAttribute('data-theme', settings.theme);
+      } else {
+        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+      }
+    } catch (e) {
+      console.error('Failed to load settings:', e);
+    }
+  },
+
   loadKeybindings: () => {
     try {
       const stored = localStorage.getItem(KEYBINDINGS_STORAGE_KEY);
@@ -415,6 +436,8 @@ export const useStore = create<EditorState>((set, get) => ({
       set({
         showLineNumbersForNonMd: parsed.showLineNumbersForNonMd ?? DEFAULT_EDITOR_VIEW_PREFS.showLineNumbersForNonMd,
         openNonMdInSourceMode: parsed.openNonMdInSourceMode ?? DEFAULT_EDITOR_VIEW_PREFS.openNonMdInSourceMode,
+        showFloatingTextToolbar:
+          parsed.showFloatingTextToolbar ?? DEFAULT_EDITOR_VIEW_PREFS.showFloatingTextToolbar,
       });
     } catch (e) {
       console.error('Failed to load editor view prefs:', e);
@@ -454,6 +477,7 @@ export const useStore = create<EditorState>((set, get) => ({
       const next = {
         showLineNumbersForNonMd: enabled,
         openNonMdInSourceMode: state.openNonMdInSourceMode,
+        showFloatingTextToolbar: state.showFloatingTextToolbar,
       };
       localStorage.setItem(EDITOR_VIEW_PREFS_STORAGE_KEY, JSON.stringify(next));
       return { showLineNumbersForNonMd: enabled };
@@ -465,9 +489,22 @@ export const useStore = create<EditorState>((set, get) => ({
       const next = {
         showLineNumbersForNonMd: state.showLineNumbersForNonMd,
         openNonMdInSourceMode: enabled,
+        showFloatingTextToolbar: state.showFloatingTextToolbar,
       };
       localStorage.setItem(EDITOR_VIEW_PREFS_STORAGE_KEY, JSON.stringify(next));
       return { openNonMdInSourceMode: enabled };
+    });
+  },
+
+  setShowFloatingTextToolbar: (enabled: boolean) => {
+    set((state) => {
+      const next = {
+        showLineNumbersForNonMd: state.showLineNumbersForNonMd,
+        openNonMdInSourceMode: state.openNonMdInSourceMode,
+        showFloatingTextToolbar: enabled,
+      };
+      localStorage.setItem(EDITOR_VIEW_PREFS_STORAGE_KEY, JSON.stringify(next));
+      return { showFloatingTextToolbar: enabled };
     });
   },
 
@@ -565,6 +602,20 @@ export const useStore = create<EditorState>((set, get) => ({
     });
   },
 
+  loadPlugins: async () => {
+    try {
+      const plugins = await api.listPlugins();
+      set({ plugins });
+    } catch (e) {
+      console.error('Failed to load plugins:', e);
+    }
+  },
+});
+
+const createWorkspaceSlice: StoreSlice<WorkspaceSlice> = (set) => ({
+  workspaceRoot: null,
+  workspaceTree: null,
+
   loadWorkspace: async (path?: string) => {
     try {
       if (path) {
@@ -581,24 +632,17 @@ export const useStore = create<EditorState>((set, get) => ({
       console.error('Failed to load workspace:', e);
     }
   },
+});
 
-  loadPlugins: async () => {
-    try {
-      const plugins = await api.listPlugins();
-      set({ plugins });
-    } catch (e) {
-      console.error('Failed to load plugins:', e);
-    }
-  },
-
-  loadRecoveryDrafts: async () => {
-    try {
-      const recoveryDrafts = await api.listRecoveryDrafts();
-      set({ recoveryDrafts });
-    } catch (e) {
-      console.error('Failed to load recovery drafts:', e);
-    }
-  },
+const createUiSlice: StoreSlice<UiSlice> = (set) => ({
+  isSourceMode: false,
+  isSidebarOpen: false,
+  isFindReplaceOpen: false,
+  isPreferencesOpen: false,
+  preferencesActiveTab: 'settings',
+  isGlobalSearchOpen: false,
+  isExportOpen: false,
+  sidebarWidth: 260,
 
   setSidebarWidth: (width: number) => {
     const clamped = Math.min(480, Math.max(180, width));
@@ -612,4 +656,11 @@ export const useStore = create<EditorState>((set, get) => ({
   toggleFindReplace: () => set(state => ({ isFindReplaceOpen: !state.isFindReplaceOpen })),
   toggleGlobalSearch: () => set(state => ({ isGlobalSearchOpen: !state.isGlobalSearchOpen })),
   toggleExport: () => set(state => ({ isExportOpen: !state.isExportOpen }))
+});
+
+export const useStore = create<EditorState>()((...sliceArgs) => ({
+  ...createEditorDocumentSlice(...sliceArgs),
+  ...createPreferencesSlice(...sliceArgs),
+  ...createWorkspaceSlice(...sliceArgs),
+  ...createUiSlice(...sliceArgs),
 }));

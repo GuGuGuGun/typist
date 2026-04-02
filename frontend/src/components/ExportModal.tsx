@@ -1,14 +1,67 @@
 import React, { useState } from 'react';
 import { useStore } from '../store';
 import { api } from '../api';
-import { X, FileCode2, FileWarning } from 'lucide-react';
+import { X, FileCode2, FileWarning, FileType2, BookOpenText, Presentation } from 'lucide-react';
+
+type ExportFormat = 'pdf' | 'html' | 'docx' | 'latex' | 'epub' | 'reveal_js';
+
+const FORMAT_META: Record<ExportFormat, {
+  label: string;
+  hint: string;
+  extension: string;
+  filterName: string;
+  icon: React.ReactNode;
+}> = {
+  pdf: {
+    label: 'PDF',
+    hint: 'Pandoc PDF',
+    extension: 'pdf',
+    filterName: 'PDF Document',
+    icon: <FileWarning size={24} />,
+  },
+  html: {
+    label: 'HTML',
+    hint: 'Web Page',
+    extension: 'html',
+    filterName: 'HTML Document',
+    icon: <FileCode2 size={24} />,
+  },
+  docx: {
+    label: 'DOCX',
+    hint: 'Word Document',
+    extension: 'docx',
+    filterName: 'Word Document',
+    icon: <FileType2 size={24} />,
+  },
+  latex: {
+    label: 'LaTeX',
+    hint: 'TeX Source',
+    extension: 'tex',
+    filterName: 'LaTeX Document',
+    icon: <FileType2 size={24} />,
+  },
+  epub: {
+    label: 'EPUB',
+    hint: 'E-Book',
+    extension: 'epub',
+    filterName: 'EPUB Book',
+    icon: <BookOpenText size={24} />,
+  },
+  reveal_js: {
+    label: 'Reveal.js',
+    hint: 'Slides',
+    extension: 'html',
+    filterName: 'Reveal.js Slides',
+    icon: <Presentation size={24} />,
+  },
+};
 
 export const ExportModal: React.FC = () => {
   const isOpen = useStore(state => state.isExportOpen);
   const toggleOpen = useStore(state => state.toggleExport);
   const activeContent = useStore(state => state.activeContent);
   
-  const [format, setFormat] = useState<'html' | 'pdf'>('pdf');
+  const [format, setFormat] = useState<ExportFormat>('pdf');
   const [status, setStatus] = useState<string>('');
 
   if (!isOpen) return null;
@@ -17,10 +70,11 @@ export const ExportModal: React.FC = () => {
     try {
       setStatus('Prompting for save location...');
       const { save } = await import('@tauri-apps/plugin-dialog');
+      const selectedMeta = FORMAT_META[format];
       const targetPath = await save({
         filters: [{
-          name: format === 'pdf' ? 'PDF Document' : 'HTML Document',
-          extensions: [format]
+          name: selectedMeta.filterName,
+          extensions: [selectedMeta.extension]
         }]
       });
 
@@ -62,21 +116,33 @@ export const ExportModal: React.FC = () => {
           
           <div style={{ display: 'flex', gap: '12px' }}>
             <div 
-              onClick={() => setFormat('pdf')}
-              style={{ flex: 1, padding: '16px', border: `1px solid ${format === 'pdf' ? 'var(--accent)' : 'var(--border-color)'}`, borderRadius: 'var(--radius-lg)', textAlign: 'center', cursor: 'pointer', background: format === 'pdf' ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'var(--bg-secondary)', transition: 'all var(--transition-fast)' }}
+              style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '12px', width: '100%' }}
             >
-              <FileWarning size={24} style={{ margin: '0 auto 8px', display: 'block', color: format === 'pdf' ? 'var(--accent)' : 'var(--text-muted)' }} />
-              <div style={{ fontWeight: 600, color: format === 'pdf' ? 'var(--text-primary)' : 'var(--text-secondary)' }}>PDF</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Standard Document</div>
-            </div>
-            
-            <div 
-              onClick={() => setFormat('html')}
-              style={{ flex: 1, padding: '16px', border: `1px solid ${format === 'html' ? 'var(--accent)' : 'var(--border-color)'}`, borderRadius: 'var(--radius-lg)', textAlign: 'center', cursor: 'pointer', background: format === 'html' ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'var(--bg-secondary)', transition: 'all var(--transition-fast)' }}
-            >
-              <FileCode2 size={24} style={{ margin: '0 auto 8px', display: 'block', color: format === 'html' ? 'var(--accent)' : 'var(--text-muted)' }} />
-              <div style={{ fontWeight: 600, color: format === 'html' ? 'var(--text-primary)' : 'var(--text-secondary)' }}>HTML</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Web Page</div>
+              {(Object.keys(FORMAT_META) as ExportFormat[]).map((item) => {
+                const selected = format === item;
+                const meta = FORMAT_META[item];
+                return (
+                  <div
+                    key={item}
+                    onClick={() => setFormat(item)}
+                    style={{
+                      padding: '14px',
+                      border: `1px solid ${selected ? 'var(--accent)' : 'var(--border-color)'}`,
+                      borderRadius: 'var(--radius-lg)',
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                      background: selected ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'var(--bg-secondary)',
+                      transition: 'all var(--transition-fast)',
+                    }}
+                  >
+                    <div style={{ margin: '0 auto 8px', display: 'block', color: selected ? 'var(--accent)' : 'var(--text-muted)' }}>
+                      {meta.icon}
+                    </div>
+                    <div style={{ fontWeight: 600, color: selected ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{meta.label}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>{meta.hint}</div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

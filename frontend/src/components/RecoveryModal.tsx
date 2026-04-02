@@ -15,15 +15,26 @@ export const RecoveryModal: React.FC = () => {
 
   const handleRestore = async (draftId: string) => {
     try {
-      await api.restoreRecoveryDraft(draftId);
-      // Backend automatically promotes it to an open tab and returns content
-      // We'll trust openFile to sync the current state. But wait, `restore` doesn't call `open_file`.
-      // The PRD says restore creates a tab. We can just reload tabs.
-      const useStoreRef = useStore.getState();
-      await useStoreRef.loadTabs();
-      // Also open it if we have a way. The backend `restore_recovery_draft_cmd` returns `RecoveryDraftContent`. 
-      // To show it we can just reload tabs and let the backend select it.
-      await loadRecoveryDrafts(); // refresh list
+      const recovered = await api.restoreRecoveryDraft(draftId);
+      const storeRef = useStore.getState();
+
+      let targetTabId: string | null | undefined = storeRef.activeTabId;
+      if (recovered.metadata.source_path) {
+        targetTabId = await storeRef.openFile(recovered.metadata.source_path);
+      }
+
+      if (!targetTabId) {
+        await storeRef.loadTabs();
+        targetTabId = useStore.getState().activeTabId;
+      }
+
+      if (targetTabId) {
+        useStore.getState().setActiveContent(recovered.content);
+        await useStore.getState().markTabDirty(targetTabId, true);
+      }
+
+      await api.deleteRecoveryDraft(draftId);
+      await loadRecoveryDrafts();
     } catch (e) {
       console.error('Failed to restore draft', e);
     }

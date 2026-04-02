@@ -187,6 +187,10 @@ pub struct GlobalSearchResponse {
 pub enum ExportFormat {
     Html,
     Pdf,
+    Docx,
+    Latex,
+    Epub,
+    RevealJs,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

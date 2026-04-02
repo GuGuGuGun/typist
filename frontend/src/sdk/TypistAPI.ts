@@ -4,7 +4,221 @@ import React from 'react';
 
 const pluginCommandHandlers = new Map<string, () => void | Promise<void>>();
 const pluginCleanupHandlers = new Map<string, Set<() => void | Promise<void>>>();
+const pluginSandboxWorkers = new Map<string, Worker>();
+const pluginSandboxPermissions = new Map<string, Set<string>>();
 let slotsContextRef: any = null;
+
+type SandboxWorkerRequest = {
+  type: 'request';
+  id: number;
+  action:
+    | 'getActiveFile'
+    | 'getContent'
+    | 'setContent'
+    | 'insertText'
+    | 'emitEvent'
+    | 'pasteImage'
+    | 'uiRegisterSlot'
+    | 'uiUnregisterSlot'
+    | 'uiUnregisterAllSlots';
+  payload?: Record<string, unknown>;
+};
+
+type SandboxWorkerMessage =
+  | {
+      type: 'registerCommand';
+      pluginId: string;
+      commandId: string;
+      label: string;
+      category: string;
+    }
+  | { type: 'unregisterCommands'; pluginId: string }
+  | { type: 'ready'; pluginId: string }
+  | { type: 'runtimeError'; pluginId: string; message: string; stack?: string }
+  | SandboxWorkerRequest;
+
+const hasPluginPermission = (pluginId: string, permission: string) => {
+  const permissions = pluginSandboxPermissions.get(pluginId);
+  if (!permissions) return false;
+  return permissions.has(permission);
+};
+
+const postSandboxResponse = (
+  worker: Worker,
+  id: number,
+  ok: boolean,
+  result?: unknown,
+  error?: string,
+) => {
+  worker.postMessage({ type: 'response', id, ok, result, error });
+};
+
+const asString = (value: unknown) => (typeof value === 'string' ? value : '');
+
+const handleSandboxRequest = async (
+  pluginId: string,
+  worker: Worker,
+  message: SandboxWorkerRequest,
+) => {
+  const payload = message.payload ?? {};
+
+  try {
+    let result: unknown;
+
+    switch (message.action) {
+      case 'getActiveFile': {
+        const state = useStore.getState();
+        const tab = state.tabs.find((item) => item.tab_id === state.activeTabId);
+        result = { path: tab?.path ?? null, content: state.activeContent };
+        break;
+      }
+      case 'getContent': {
+        result = useStore.getState().activeContent;
+        break;
+      }
+      case 'setContent': {
+        const content = asString(payload.content);
+        updateContent(content);
+        result = true;
+        break;
+      }
+      case 'insertText': {
+        const text = asString(payload.text);
+        (window as any).TypistAPI?.editor?.insertTextAtCursor?.(text);
+        result = true;
+        break;
+      }
+      case 'emitEvent': {
+        if (!hasPluginPermission(pluginId, 'events.emit')) {
+          throw new Error('permission denied: events.emit');
+        }
+
+        const event = asString(payload.event);
+        result = await api.emitPluginEvent(
+          pluginId,
+          event,
+          payload.payload ? JSON.stringify(payload.payload) : null,
+        );
+        break;
+      }
+      case 'pasteImage': {
+        if (!hasPluginPermission(pluginId, 'images.paste')) {
+          throw new Error('permission denied: images.paste');
+        }
+
+        const base64Data = asString(payload.base64Data);
+        const mimeType = asString(payload.mimeType);
+        result = await api.pasteImage({ base64_data: base64Data, mime_type: mimeType });
+        break;
+      }
+      case 'uiRegisterSlot':
+      case 'uiUnregisterSlot':
+      case 'uiUnregisterAllSlots': {
+        throw new Error('ui slot APIs are not available in sandboxed plugins');
+      }
+      default: {
+        throw new Error(`unsupported sandbox action: ${String(message.action)}`);
+      }
+    }
+
+    postSandboxResponse(worker, message.id, true, result);
+  } catch (error) {
+    postSandboxResponse(worker, message.id, false, null, String(error));
+  }
+};
+
+const unregisterSandboxPluginCommands = (pluginId: string) => {
+  useStore.getState().unregisterPluginCommands(pluginId);
+  Array.from(pluginCommandHandlers.keys()).forEach((id) => {
+    if (id.startsWith(`plugin.${pluginId}.`)) {
+      pluginCommandHandlers.delete(id);
+    }
+  });
+};
+
+export const setPluginSandboxPermissions = (pluginId: string, permissions: string[]) => {
+  pluginSandboxPermissions.set(pluginId, new Set(permissions));
+};
+
+export const mountSandboxedPlugin = (pluginId: string, entry: string | null | undefined) => {
+  if (!pluginId || !entry) return;
+
+  const existing = pluginSandboxWorkers.get(pluginId);
+  if (existing) {
+    try {
+      existing.postMessage({ type: 'destroy' });
+    } finally {
+      existing.terminate();
+    }
+    pluginSandboxWorkers.delete(pluginId);
+  }
+
+  const worker = new Worker(new URL('../workers/pluginSandboxWorker.ts', import.meta.url), {
+    type: 'module',
+  });
+
+  worker.addEventListener('message', (event: MessageEvent<SandboxWorkerMessage>) => {
+    const data = event.data;
+    if (!data || typeof data !== 'object') return;
+
+    if (data.type === 'registerCommand') {
+      useStore.getState().registerPluginCommand({
+        id: data.commandId,
+        pluginId: data.pluginId,
+        label: data.label,
+        category: data.category,
+      });
+      pluginCommandHandlers.set(data.commandId, async () => {
+        worker.postMessage({ type: 'executeCommand', commandId: data.commandId });
+      });
+      return;
+    }
+
+    if (data.type === 'unregisterCommands') {
+      unregisterSandboxPluginCommands(data.pluginId);
+      return;
+    }
+
+    if (data.type === 'request') {
+      void handleSandboxRequest(pluginId, worker, data);
+      return;
+    }
+
+    if (data.type === 'runtimeError') {
+      console.error(`[Plugin sandbox] ${data.pluginId}: ${data.message}`);
+      if (data.stack) {
+        console.error(data.stack);
+      }
+      return;
+    }
+
+    if (data.type === 'ready') {
+      console.log(`[Plugin sandbox] ${data.pluginId} ready`);
+    }
+  });
+
+  worker.addEventListener('error', (event) => {
+    console.error(`[Plugin sandbox] ${pluginId} worker error`, event.error || event.message);
+  });
+
+  worker.postMessage({ type: 'init', pluginId, entry });
+  pluginSandboxWorkers.set(pluginId, worker);
+};
+
+export const unmountSandboxedPlugin = (pluginId: string) => {
+  const worker = pluginSandboxWorkers.get(pluginId);
+  if (worker) {
+    try {
+      worker.postMessage({ type: 'destroy' });
+    } finally {
+      worker.terminate();
+    }
+  }
+
+  pluginSandboxWorkers.delete(pluginId);
+  pluginSandboxPermissions.delete(pluginId);
+  unregisterSandboxPluginCommands(pluginId);
+};
 
 const registerPluginCleanup = (pluginId: string, cleanup: () => void | Promise<void>) => {
   if (!pluginId || typeof cleanup !== 'function') {
@@ -26,6 +240,8 @@ const registerPluginCleanup = (pluginId: string, cleanup: () => void | Promise<v
 };
 
 export const runPluginCleanup = async (pluginId: string) => {
+  unmountSandboxedPlugin(pluginId);
+
   const handlers = Array.from(pluginCleanupHandlers.get(pluginId) ?? []);
 
   for (const handler of handlers) {
@@ -184,6 +400,9 @@ export const injectPluginSDK = (slotsCtx: any) => {
 };
 
 export const removePluginSDK = () => {
+  Array.from(pluginSandboxWorkers.keys()).forEach((pluginId) => {
+    unmountSandboxedPlugin(pluginId);
+  });
   const pluginIds = Array.from(pluginCleanupHandlers.keys());
   pluginIds.forEach((pluginId) => {
     void runPluginCleanup(pluginId);

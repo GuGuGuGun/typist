@@ -64,6 +64,50 @@ pub fn check_external_change(path: &str, previous: &FileSnapshot) -> BackendResu
     })
 }
 
+pub fn read_custom_css_file(path: &str) -> BackendResult<String> {
+    if path.trim().is_empty() {
+        return Err(BackendError::InvalidInput(
+            "custom css path must not be empty".to_string(),
+        ));
+    }
+
+    let css_path = Path::new(path);
+    if !css_path.exists() {
+        return Err(BackendError::InvalidInput(format!(
+            "custom css file not found: {}",
+            css_path.display()
+        )));
+    }
+
+    if !css_path.is_file() {
+        return Err(BackendError::InvalidInput(format!(
+            "custom css path is not a file: {}",
+            css_path.display()
+        )));
+    }
+
+    let ext = css_path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if ext != "css" {
+        return Err(BackendError::InvalidInput(format!(
+            "custom css file must use .css extension: {}",
+            css_path.display()
+        )));
+    }
+
+    let metadata = fs::metadata(css_path)?;
+    if metadata.len() > 256 * 1024 {
+        return Err(BackendError::InvalidInput(
+            "custom css file is too large (max 256KB)".to_string(),
+        ));
+    }
+
+    fs::read_to_string(css_path).map_err(BackendError::from)
+}
+
 fn build_snapshot(path: &str, content: &str) -> BackendResult<FileSnapshot> {
     let metadata = fs::metadata(path)?;
     let modified_epoch_ms = metadata

@@ -145,7 +145,7 @@ export interface GlobalSearchResponse {
 export interface ExportRequest {
   markdown: string;
   target_path: string;
-  format: 'html' | 'pdf';
+  format: 'html' | 'pdf' | 'docx' | 'latex' | 'epub' | 'reveal_js';
   title?: string;
 }
 
@@ -275,5 +275,6 @@ export const api = {
 
   // Settings
   getSettings: () => invoke<EditorSettings>('get_settings_cmd'),
+  getCustomCss: () => invoke<string | null>('get_custom_css_cmd'),
   updateSettings: (patch: SettingsPatch) => invoke<EditorSettings>('update_settings_cmd', { patch }),
 };

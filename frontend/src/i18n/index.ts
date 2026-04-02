@@ -17,6 +17,13 @@ type LocaleMessages = {
     showLineNumbersDesc: string;
     openNonMdSourceLabel: string;
     openNonMdSourceDesc: string;
+    floatingToolbarLabel: string;
+    floatingToolbarDesc: string;
+    customCssLabel: string;
+    customCssChoose: string;
+    customCssClear: string;
+    customCssCurrent: string;
+    customCssEmpty: string;
   };
   preferences: {
     title: string;
@@ -117,6 +124,13 @@ const LOCALES: Record<AppLanguage, LocaleMessages> = {
       showLineNumbersDesc: '对 txt、json 等源码文档在左侧显示行号和当前行高亮。',
       openNonMdSourceLabel: '非 Markdown 文档默认源码模式',
       openNonMdSourceDesc: '打开非 md 文件时自动使用源码编辑器，避免进入富文本模式。',
+      floatingToolbarLabel: '富文本显示选区工具条',
+      floatingToolbarDesc: '选中文本时显示加粗/斜体/代码/标题快捷工具条。',
+      customCssLabel: '自定义 CSS 主题',
+      customCssChoose: '选择 CSS 文件',
+      customCssClear: '清除自定义主题',
+      customCssCurrent: '当前文件',
+      customCssEmpty: '未设置自定义 CSS，使用内置主题变量。',
     },
     preferences: {
       title: '设置',
@@ -221,6 +235,13 @@ const LOCALES: Record<AppLanguage, LocaleMessages> = {
       showLineNumbersDesc: 'Show line numbers and active-line highlight for txt/json and other source files.',
       openNonMdSourceLabel: 'Open non-Markdown files in source mode',
       openNonMdSourceDesc: 'Open non-md files in source editor by default to avoid rich-text mode.',
+      floatingToolbarLabel: 'Show floating text toolbar in WYSIWYG',
+      floatingToolbarDesc: 'Show quick actions (bold/italic/code/heading) when text is selected.',
+      customCssLabel: 'Custom CSS Theme',
+      customCssChoose: 'Choose CSS File',
+      customCssClear: 'Clear Custom Theme',
+      customCssCurrent: 'Current file',
+      customCssEmpty: 'No custom CSS selected, using built-in theme variables.',
     },
     preferences: {
       title: 'Preferences',

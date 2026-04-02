@@ -1,5 +1,7 @@
 use std::fs;
+use std::io::Write;
 use std::path::Path;
+use std::process::{Command, Stdio};
 
 use pulldown_cmark::{html, Options, Parser};
 
@@ -21,7 +23,11 @@ pub fn export_document(request: &ExportRequest) -> BackendResult<ExportResult> {
 
     match request.format {
         ExportFormat::Html => export_html(request),
-        ExportFormat::Pdf => export_pdf(request),
+        ExportFormat::Pdf => export_with_pandoc(request, "pdf"),
+        ExportFormat::Docx => export_with_pandoc(request, "docx"),
+        ExportFormat::Latex => export_with_pandoc(request, "latex"),
+        ExportFormat::Epub => export_with_pandoc(request, "epub"),
+        ExportFormat::RevealJs => export_with_pandoc(request, "revealjs"),
     }
 }
 
@@ -48,79 +54,76 @@ fn export_html(request: &ExportRequest) -> BackendResult<ExportResult> {
     })
 }
 
-fn export_pdf(request: &ExportRequest) -> BackendResult<ExportResult> {
-    let plain_text = markdown_to_plain_text(&request.markdown);
-    let pdf_bytes = build_simple_pdf(plain_text.as_str())?;
-    fs::write(&request.target_path, &pdf_bytes)?;
+fn export_with_pandoc(request: &ExportRequest, writer: &str) -> BackendResult<ExportResult> {
+    let prepared_markdown = preprocess_for_pandoc(&request.markdown);
+
+    let mut command = Command::new("pandoc");
+    command
+        .arg("--from")
+        .arg("gfm")
+        .arg("--to")
+        .arg(writer)
+        .arg("--output")
+        .arg(&request.target_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+
+    if let Some(title) = request.title.as_deref() {
+        if !title.trim().is_empty() {
+            command.arg("--metadata").arg(format!("title={title}"));
+        }
+    }
+
+    let mut child = command.spawn().map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            BackendError::Export(
+                "pandoc executable was not found. Please install Pandoc and ensure it is available in PATH"
+                    .to_string(),
+            )
+        } else {
+            BackendError::Export(format!("failed to start pandoc process: {error}"))
+        }
+    })?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin
+            .write_all(prepared_markdown.as_bytes())
+            .map_err(|error| BackendError::Export(format!("failed to stream markdown to pandoc: {error}")))?;
+    }
+
+    let output = child
+        .wait_with_output()
+        .map_err(|error| BackendError::Export(format!("failed to wait for pandoc process: {error}")))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(BackendError::Export(if stderr.is_empty() {
+            format!("pandoc export failed with status {}", output.status)
+        } else {
+            format!("pandoc export failed: {stderr}")
+        }));
+    }
+
+    let bytes_written = fs::metadata(&request.target_path)
+        .map(|metadata| metadata.len())
+        .unwrap_or(0);
 
     Ok(ExportResult {
         target_path: request.target_path.clone(),
-        bytes_written: pdf_bytes.len() as u64,
+        bytes_written,
     })
 }
 
-fn markdown_to_plain_text(markdown: &str) -> String {
+fn preprocess_for_pandoc(markdown: &str) -> String {
+    // Normalize a few Typist-specific or user-friendly syntaxes before handing to Pandoc.
     markdown
+        .replace("\r\n", "\n")
         .lines()
-        .map(|line| line.trim_start_matches('#').trim().to_string())
-        .collect::<Vec<String>>()
+        .filter(|line| {
+            let trimmed = line.trim();
+            !(trimmed.starts_with("<!-- typist:") && trimmed.ends_with("-->"))
+        })
+        .collect::<Vec<&str>>()
         .join("\n")
-}
-
-fn build_simple_pdf(content: &str) -> BackendResult<Vec<u8>> {
-    let mut lines = content
-        .lines()
-        .map(|line| line.replace('(', "\\(").replace(')', "\\)").replace('\\', "\\\\"))
-        .collect::<Vec<String>>();
-    if lines.is_empty() {
-        lines.push(" ".to_string());
-    }
-    lines.truncate(80);
-
-    let mut text_stream = String::from("BT\n/F1 11 Tf\n50 790 Td\n");
-    for (index, line) in lines.iter().enumerate() {
-        if index == 0 {
-            text_stream.push_str(format!("({line}) Tj\n").as_str());
-        } else {
-            text_stream.push_str(format!("0 -14 Td ({line}) Tj\n").as_str());
-        }
-    }
-    text_stream.push_str("ET\n");
-
-    let object1 = "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n".to_string();
-    let object2 = "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n".to_string();
-    let object3 = "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj\n".to_string();
-    let object4 = format!(
-        "4 0 obj << /Length {} >> stream\n{}endstream endobj\n",
-        text_stream.len(),
-        text_stream
-    );
-    let object5 = "5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n".to_string();
-
-    let mut pdf = Vec::<u8>::new();
-    pdf.extend_from_slice(b"%PDF-1.4\n");
-
-    let mut offsets = vec![0usize];
-    for object in [&object1, &object2, &object3, &object4, &object5] {
-        offsets.push(pdf.len());
-        pdf.extend_from_slice(object.as_bytes());
-    }
-
-    let xref_offset = pdf.len();
-    let mut xref = String::from("xref\n0 6\n0000000000 65535 f \n");
-    for offset in offsets.iter().skip(1) {
-        xref.push_str(format!("{offset:010} 00000 n \n").as_str());
-    }
-    pdf.extend_from_slice(xref.as_bytes());
-
-    let trailer = format!(
-        "trailer << /Size 6 /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n"
-    );
-    pdf.extend_from_slice(trailer.as_bytes());
-
-    if pdf.is_empty() {
-        return Err(BackendError::Export("failed to build pdf".to_string()));
-    }
-
-    Ok(pdf)
 }

@@ -16,10 +16,27 @@ import { injectPluginSDK, removePluginSDK } from './sdk/TypistAPI';
 import { mountWordCountPlugin } from './plugins/base/wordCount';
 import { mountAdvancedRenderPlugin } from './plugins/base/advancedRender';
 import { useStore } from './store';
+import { useShallow } from 'zustand/react/shallow';
 import { useShortcuts } from './hooks/useShortcuts';
 import { api } from './api';
 import { formatExternalPromptMessage, getLocaleMessages } from './i18n';
 import './index.css';
+
+const CUSTOM_CSS_STYLE_ID = 'typist-custom-css';
+
+const removeCustomCssTag = () => {
+  document.getElementById(CUSTOM_CSS_STYLE_ID)?.remove();
+};
+
+const upsertCustomCssTag = (cssText: string) => {
+  let style = document.getElementById(CUSTOM_CSS_STYLE_ID) as HTMLStyleElement | null;
+  if (!style) {
+    style = document.createElement('style');
+    style.id = CUSTOM_CSS_STYLE_ID;
+    document.head.appendChild(style);
+  }
+  style.textContent = cssText;
+};
 
 interface ExternalChangePrompt {
   tabId: string;
@@ -30,18 +47,33 @@ interface ExternalChangePrompt {
 }
 
 function AppContent() {
-  const loadSettings = useStore(state => state.loadSettings);
-  const loadTabs = useStore(state => state.loadTabs);
-  const loadKeybindings = useStore(state => state.loadKeybindings);
-  const loadBuiltInPluginState = useStore(state => state.loadBuiltInPluginState);
-  const loadEditorViewPrefs = useStore(state => state.loadEditorViewPrefs);
-  const loadLanguage = useStore(state => state.loadLanguage);
-  const builtInPluginState = useStore(state => state.builtInPluginState);
-  const isSidebarOpen = useStore(state => state.isSidebarOpen);
-  const sidebarWidth = useStore(state => state.sidebarWidth);
-  const setSidebarWidth = useStore(state => state.setSidebarWidth);
-  const settings = useStore(state => state.settings);
-  const language = useStore(state => state.language);
+  const {
+    loadSettings,
+    loadTabs,
+    loadKeybindings,
+    loadBuiltInPluginState,
+    loadEditorViewPrefs,
+    loadLanguage,
+    builtInPluginState,
+    isSidebarOpen,
+    sidebarWidth,
+    setSidebarWidth,
+    settings,
+    language,
+  } = useStore(useShallow((state) => ({
+    loadSettings: state.loadSettings,
+    loadTabs: state.loadTabs,
+    loadKeybindings: state.loadKeybindings,
+    loadBuiltInPluginState: state.loadBuiltInPluginState,
+    loadEditorViewPrefs: state.loadEditorViewPrefs,
+    loadLanguage: state.loadLanguage,
+    builtInPluginState: state.builtInPluginState,
+    isSidebarOpen: state.isSidebarOpen,
+    sidebarWidth: state.sidebarWidth,
+    setSidebarWidth: state.setSidebarWidth,
+    settings: state.settings,
+    language: state.language,
+  })));
   const externalText = getLocaleMessages(language).externalPrompt;
   const wordCleanupRef = useRef<(() => void) | null>(null);
   const advancedCleanupRef = useRef<(() => void) | null>(null);
@@ -128,6 +160,38 @@ function AppContent() {
     loadEditorViewPrefs();
     loadLanguage();
   }, [loadSettings, loadTabs, loadKeybindings, loadBuiltInPluginState, loadEditorViewPrefs, loadLanguage]);
+
+  useEffect(() => {
+    let disposed = false;
+
+    const applyCustomCss = async () => {
+      if (!settings?.custom_css_path) {
+        removeCustomCssTag();
+        return;
+      }
+
+      try {
+        const cssText = await api.getCustomCss();
+        if (disposed) return;
+
+        if (!cssText || !cssText.trim()) {
+          removeCustomCssTag();
+          return;
+        }
+
+        upsertCustomCssTag(cssText);
+      } catch (error) {
+        console.error('Failed to load custom CSS:', error);
+        removeCustomCssTag();
+      }
+    };
+
+    void applyCustomCss();
+
+    return () => {
+      disposed = true;
+    };
+  }, [settings?.custom_css_path]);
 
   useEffect(() => {
     let disposed = false;
