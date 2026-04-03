@@ -16,10 +16,44 @@ type SlotsContextLike = {
 };
 
 type TypistApiLike = {
+  getActiveFile?: () => { path: string | undefined; content: string };
   editor?: {
+    getContent?: () => string;
+    setContent?: (content: string) => void;
     insertTextAtCursor?: (text: string) => void;
   };
+  ui?: {
+    registerSlot?: (position: string, pluginId: string, id: string, component: React.FC) => void;
+    unregisterSlot?: (position: string, pluginId: string, id: string) => void;
+    unregisterAllSlots?: (pluginId: string) => void;
+  };
+  commands?: {
+    registerCommand?: (
+      pluginId: string,
+      commandKey: string,
+      label: string,
+      category?: string,
+      handler?: () => void | Promise<void>,
+    ) => void;
+    unregisterCommands?: (pluginId: string) => void;
+    execute?: (commandId: string) => Promise<boolean>;
+  };
+  lifecycle?: {
+    registerCleanup?: (pluginId: string, cleanup: () => void | Promise<void>) => () => void;
+    runCleanup?: (pluginId: string) => Promise<void>;
+  };
+  backend?: {
+    emitEvent?: (pluginId: string, event: string, payload: unknown) => Promise<unknown>;
+    pasteImage?: (base64Data: string, mimeType: string) => Promise<{ local_path: string }>;
+  };
+  React?: typeof React;
 };
+
+const isSlotPosition = (value: string): value is SlotPosition =>
+  value === 'sidebar_bottom'
+  || value === 'status_bar_left'
+  || value === 'status_bar_right'
+  || value === 'toolbar_right';
 
 declare global {
   interface Window {
@@ -351,9 +385,15 @@ export const injectPluginSDK = (slotsCtx: SlotsContextLike) => {
     // 3. UI Slots Injection
     ui: {
       registerSlot: (position: string, pluginId: string, id: string, component: React.FC) => {
+        if (!isSlotPosition(position)) {
+          throw new Error(`invalid slot position: ${position}`);
+        }
         slotsCtx.registerSlot(position, pluginId, id, component);
       },
       unregisterSlot: (position: string, pluginId: string, id: string) => {
+        if (!isSlotPosition(position)) {
+          throw new Error(`invalid slot position: ${position}`);
+        }
         slotsCtx.unregisterSlot(position, pluginId, id);
       },
       unregisterAllSlots: (pluginId: string) => {
