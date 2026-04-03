@@ -57,7 +57,7 @@ const DraftInputRow: React.FC<DraftInputRowProps> = ({
     } else {
       input.select();
     }
-  }, [selectStem]);
+  }, [selectStem, value]);
 
   return (
     <div className="inline-entry-wrap">
@@ -244,9 +244,9 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
         />
       )}
 
-      {isOpen && node.is_dir && node.children.map((child, i) => (
+      {isOpen && node.is_dir && node.children.map((child) => (
         <FileTreeNode
-          key={i}
+          key={child.path}
           node={child}
           depth={depth + 1}
           draft={draft}

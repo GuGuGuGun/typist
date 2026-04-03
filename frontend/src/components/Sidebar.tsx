@@ -254,11 +254,11 @@ export const Sidebar: React.FC = () => {
         {activeTab === 'explorer' && <FileTree />}
         {activeTab === 'recent' && (
           <div>
-            {recentFiles.map((item, idx) => {
+            {recentFiles.map((item) => {
               const fileName = item.path.split(/[/\\]/).pop();
               return (
                 <div
-                  key={idx}
+                  key={item.path}
                   className="sidebar-item"
                   title={item.path}
                   onClick={() => openFile(item.path)}

@@ -196,7 +196,9 @@ const createEditorDocumentSlice: StoreSlice<EditorDocumentSlice> = (set, get) =>
       const { save } = await import('@tauri-apps/plugin-dialog');
       const targetPath = await save({ filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }] });
       if (targetPath) {
-        const content = get().activeContent;
+        const state = get();
+        const content =
+          state.tabContents[tabId] ?? (state.activeTabId === tabId ? state.activeContent : '');
         await api.saveFileAs(tabId, targetPath, content);
         await get().loadTabs();
         await get().markTabDirty(tabId, false);

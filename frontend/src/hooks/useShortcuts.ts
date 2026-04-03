@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useStore } from '../store';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { api } from '../api';
@@ -10,6 +10,8 @@ export const useShortcuts = () => {
   const activeTabId = useStore(state => state.activeTabId);
   const isFindReplaceOpen = useStore(state => state.isFindReplaceOpen);
   const isSourceMode = useStore(state => state.isSourceMode);
+  const workspaceRoot = useStore(state => state.workspaceRoot);
+  const loadWorkspace = useStore(state => state.loadWorkspace);
   const openFile = useStore(state => state.openFile);
   const requestCloseTab = useStore(state => state.requestCloseTab);
   const saveFile = useStore(state => state.saveFile);
@@ -21,7 +23,7 @@ export const useShortcuts = () => {
   const toggleSidebar = useStore(state => state.toggleSidebar);
   const toggleGlobalSearch = useStore(state => state.toggleGlobalSearch);
 
-  const applySourceFormatting = (prefix: string, suffix: string = prefix) => {
+  const applySourceFormatting = useCallback((prefix: string, suffix: string = prefix) => {
     const textarea = document.querySelector('.source-textarea') as HTMLTextAreaElement | null;
     if (!textarea) return;
 
@@ -39,9 +41,9 @@ export const useShortcuts = () => {
       textarea.focus();
       textarea.setSelectionRange(cursor, cursor);
     });
-  };
+  }, []);
 
-  const applyLinkFormatting = () => {
+  const applyLinkFormatting = useCallback(() => {
     const textarea = document.querySelector('.source-textarea') as HTMLTextAreaElement | null;
     const url = window.prompt('输入链接 URL');
     if (!url) return;
@@ -60,9 +62,9 @@ export const useShortcuts = () => {
 
     textarea.value = next;
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
-  };
+  }, []);
 
-  const runPluginCommand = async (commandId: string) => {
+  const runPluginCommand = useCallback(async (commandId: string) => {
     const command = pluginCommands.find((item) => item.id === commandId);
     if (!command) return;
 
@@ -70,9 +72,9 @@ export const useShortcuts = () => {
     if (handled) return;
 
     await api.emitPluginEvent(command.pluginId, 'command', JSON.stringify({ commandId }));
-  };
+  }, [pluginCommands]);
 
-  const runCommand = async (commandId: string) => {
+  const runCommand = useCallback(async (commandId: string) => {
     switch (commandId) {
       case 'file.open': {
         const selected = await open({
@@ -85,11 +87,36 @@ export const useShortcuts = () => {
         return;
       }
       case 'file.new': {
+        if (!workspaceRoot) {
+          window.alert('请先打开一个工作区文件夹再新建文件。');
+          return;
+        }
+
         const targetPath = await save({
+          defaultPath: `${workspaceRoot.replace(/[\\/]$/, '')}/new-file.md`,
           filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
         });
-        if (targetPath) {
-          console.log('Ctrl+N target:', targetPath);
+
+        if (!targetPath || Array.isArray(targetPath)) {
+          return;
+        }
+
+        const normalized = targetPath.replace(/\\/g, '/');
+        const separatorIndex = normalized.lastIndexOf('/');
+        if (separatorIndex <= 0 || separatorIndex >= normalized.length - 1) {
+          window.alert('新建文件失败：目标路径无效。');
+          return;
+        }
+
+        const parentPath = normalized.slice(0, separatorIndex);
+        const name = normalized.slice(separatorIndex + 1);
+
+        try {
+          const createdPath = await api.createWorkspaceFile(parentPath, name);
+          await loadWorkspace();
+          await openFile(createdPath);
+        } catch (error) {
+          window.alert(`新建文件失败: ${String(error)}`);
         }
         return;
       }
@@ -174,7 +201,24 @@ export const useShortcuts = () => {
         }
       }
     }
-  };
+  }, [
+    activeTabId,
+    isFindReplaceOpen,
+    isSourceMode,
+    workspaceRoot,
+    loadWorkspace,
+    openFile,
+    requestCloseTab,
+    saveFile,
+    saveFileAs,
+    toggleFindReplace,
+    toggleSourceMode,
+    toggleSidebar,
+    toggleGlobalSearch,
+    applySourceFormatting,
+    applyLinkFormatting,
+    runPluginCommand,
+  ]);
 
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
@@ -209,12 +253,12 @@ export const useShortcuts = () => {
 
       if (!isKnownCommand) return;
 
-      e.preventDefault();
-
       // No active tab scenario: only allow a subset to execute.
       if (!activeTabId && ['file.open', 'file.new', 'file.newWindow', 'view.toggleSidebar'].every(id => id !== commandId)) {
         return;
       }
+
+      e.preventDefault();
 
       await runCommand(commandId);
     };
@@ -223,17 +267,7 @@ export const useShortcuts = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     activeTabId,
-    isFindReplaceOpen,
-    isSourceMode,
     keybindings,
-    openFile,
-    saveFile,
-    saveFileAs,
-    requestCloseTab,
-    toggleFindReplace,
-    toggleSourceMode,
-    toggleSidebar,
-    toggleGlobalSearch,
-    pluginCommands,
+    runCommand,
   ]);
 };
