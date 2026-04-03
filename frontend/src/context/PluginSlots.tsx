@@ -61,6 +61,7 @@ export const PluginSlotsProvider: React.FC<{ children: ReactNode }> = ({ childre
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const usePluginSlots = () => {
   const ctx = useContext(PluginSlotsContext);
   if (!ctx) throw new Error("usePluginSlots must be used within PluginSlotsProvider");

@@ -3,6 +3,32 @@ import { useStore } from '../../store';
 const PLUGIN_ID = 'dev.typist.builtin.advanced-render';
 const FLOATING_BUTTON_CLASS = 'floating-code-copy-btn';
 
+interface TypistApiLike {
+  editor: {
+    insertTextAtCursor: (text: string) => void;
+  };
+  backend: {
+    pasteImage: (base64Data: string, mimeType: string) => Promise<{ local_path: string }>;
+  };
+  commands: {
+    registerCommand: (
+      pluginId: string,
+      commandKey: string,
+      label: string,
+      category: string,
+      handler: () => void | Promise<void>,
+    ) => void;
+    unregisterCommands: (pluginId: string) => void;
+  };
+}
+
+type AdvancedRenderWindow = Window & {
+  TypistAPI?: TypistApiLike;
+  __typistAdvancedRenderMounted?: boolean;
+};
+
+const appWindow = window as unknown as AdvancedRenderWindow;
+
 const getEventElement = (event: Event) => {
   const rawTarget = event.target as Node | null;
   if (!rawTarget) return null;
@@ -22,7 +48,7 @@ const readFileAsBase64 = (file: File) =>
   });
 
 const insertImageMarkdown = (localPath: string, fileName: string) => {
-  const typistApi = (window as any).TypistAPI;
+  const typistApi = appWindow.TypistAPI;
   if (!typistApi) return;
 
   const alt = fileName.replace(/\.[^/.]+$/, '') || 'image';
@@ -42,17 +68,17 @@ const getCodeText = (pre: HTMLElement | null) => {
 };
 
 export const mountAdvancedRenderPlugin = () => {
-  if ((window as any).__typistAdvancedRenderMounted) {
+  if (appWindow.__typistAdvancedRenderMounted) {
     return;
   }
 
-  const typistApi = (window as any).TypistAPI;
+  const typistApi = appWindow.TypistAPI;
   if (!typistApi) {
     console.error('TypistAPI SDK not found. Cannot mount advanced-render plugin.');
     return;
   }
 
-  (window as any).__typistAdvancedRenderMounted = true;
+  appWindow.__typistAdvancedRenderMounted = true;
 
   let activeCodeBlock: HTMLElement | null = null;
   let moveRafId: number | null = null;
@@ -225,6 +251,6 @@ export const mountAdvancedRenderPlugin = () => {
     document.removeEventListener('click', onClick);
     document.removeEventListener('paste', onPaste);
     typistApi.commands.unregisterCommands(PLUGIN_ID);
-    (window as any).__typistAdvancedRenderMounted = false;
+    appWindow.__typistAdvancedRenderMounted = false;
   };
 };

@@ -443,7 +443,7 @@ const SourceEditor: React.FC = () => {
       textareaRef.current?.setSelectionRange(nextCursor, nextCursor);
       setViewportHeight(textareaRef.current?.clientHeight ?? 0);
     });
-  }, [activeTabId]);
+  }, [activeTabId, activeContent]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -725,7 +725,7 @@ export const EditorWrapper: React.FC = () => {
   const autoSourceForLargeDoc = Boolean(largeDocMode && activeTab?.path && isMarkdownFile(activeTab.path));
   const shouldUseSourceMode = isSourceMode || forceSourceMode || autoSourceForLargeDoc;
 
-  const focusActiveEditor = () => {
+  const focusActiveEditor = React.useCallback(() => {
     if (shouldUseSourceMode) {
       const textarea = document.querySelector('.source-textarea') as HTMLTextAreaElement | null;
       textarea?.focus();
@@ -734,13 +734,15 @@ export const EditorWrapper: React.FC = () => {
 
     const proseMirror = document.querySelector('.milkdown .ProseMirror') as HTMLElement | null;
     proseMirror?.focus();
-  };
+  }, [shouldUseSourceMode]);
 
   useEffect(() => {
     if (shouldUseSourceMode) {
-      setTableToolbar(DEFAULT_FLOATING_TOOLBAR_STATE);
-      setTextToolbar(DEFAULT_FLOATING_TOOLBAR_STATE);
-      return;
+      const frame = window.requestAnimationFrame(() => {
+        setTableToolbar(DEFAULT_FLOATING_TOOLBAR_STATE);
+        setTextToolbar(DEFAULT_FLOATING_TOOLBAR_STATE);
+      });
+      return () => window.cancelAnimationFrame(frame);
     }
 
     const updateFromSelection = () => {
@@ -826,7 +828,7 @@ export const EditorWrapper: React.FC = () => {
       window.removeEventListener('mousedown', handlePointerDown, true);
       window.removeEventListener('keydown', handleKeyDown, true);
     };
-  }, [menu, shouldUseSourceMode]);
+  }, [menu, focusActiveEditor]);
 
   useEffect(() => {
     const handleContextMenu = (event: MouseEvent) => {

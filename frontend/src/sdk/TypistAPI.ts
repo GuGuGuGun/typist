@@ -6,7 +6,28 @@ const pluginCommandHandlers = new Map<string, () => void | Promise<void>>();
 const pluginCleanupHandlers = new Map<string, Set<() => void | Promise<void>>>();
 const pluginSandboxWorkers = new Map<string, Worker>();
 const pluginSandboxPermissions = new Map<string, Set<string>>();
-let slotsContextRef: any = null;
+
+type SlotPosition = 'sidebar_bottom' | 'status_bar_left' | 'status_bar_right' | 'toolbar_right';
+
+type SlotsContextLike = {
+  registerSlot: (position: SlotPosition, pluginId: string, id: string, component: React.FC) => void;
+  unregisterSlot: (position: SlotPosition, pluginId: string, id: string) => void;
+  unregisterAllPluginSlots: (pluginId: string) => void;
+};
+
+type TypistApiLike = {
+  editor?: {
+    insertTextAtCursor?: (text: string) => void;
+  };
+};
+
+declare global {
+  interface Window {
+    TypistAPI?: TypistApiLike;
+  }
+}
+
+let slotsContextRef: SlotsContextLike | null = null;
 
 type SandboxWorkerRequest = {
   type: 'request';
@@ -84,7 +105,7 @@ const handleSandboxRequest = async (
       }
       case 'insertText': {
         const text = asString(payload.text);
-        (window as any).TypistAPI?.editor?.insertTextAtCursor?.(text);
+        window.TypistAPI?.editor?.insertTextAtCursor?.(text);
         result = true;
         break;
       }
@@ -281,11 +302,11 @@ export const runRegisteredPluginCommand = async (commandId: string) => {
   return true;
 };
 
-export const injectPluginSDK = (slotsCtx: any) => {
+export const injectPluginSDK = (slotsCtx: SlotsContextLike) => {
   slotsContextRef = slotsCtx;
 
   // We create a global object `TypistAPI` that third-party JS can access.
-  (window as any).TypistAPI = {
+  window.TypistAPI = {
     // 1. Data Store Context
     getActiveFile: () => {
       const state = useStore.getState();
@@ -386,7 +407,7 @@ export const injectPluginSDK = (slotsCtx: any) => {
     backend: {
       // Plugins should use this. The backend `plugin_permission_check_cmd` acts as a guard.
       // This MVP SDK just exposes safe wrapper methods.
-      emitEvent: async (pluginId: string, event: string, payload: any) => {
+      emitEvent: async (pluginId: string, event: string, payload: unknown) => {
         return await api.emitPluginEvent(pluginId, event, JSON.stringify(payload));
       },
       pasteImage: async (base64Data: string, mimeType: string) => {
@@ -410,5 +431,5 @@ export const removePluginSDK = () => {
   pluginCleanupHandlers.clear();
   pluginCommandHandlers.clear();
   slotsContextRef = null;
-  delete (window as any).TypistAPI;
+  delete window.TypistAPI;
 };

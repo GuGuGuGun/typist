@@ -101,7 +101,7 @@ function AppContent() {
       advancedCleanupRef.current = null;
       removePluginSDK();
     };
-  }, []);
+  }, [pluginSlotsCtx]);
 
   useEffect(() => {
     let timer: number | null = null;

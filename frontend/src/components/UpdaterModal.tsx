@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { api, type UpdateInfo } from '../api';
 import { useStore } from '../store';
 import { DownloadCloud, Sparkles, X } from 'lucide-react';
@@ -8,19 +8,13 @@ export const UpdaterModal: React.FC = () => {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [isOpen, setIsOpen] = useState(false);
 
-  useEffect(() => {
-    if (settings?.auto_update_enabled && settings.update_feed_url) {
-      checkUpdate(settings.update_feed_url);
-    }
-  }, [settings?.auto_update_enabled, settings?.update_feed_url]);
-
-  const checkUpdate = async (feedUrl: string) => {
+  const checkUpdate = useCallback(async (feedUrl: string) => {
     try {
       // Stub current version since we don't have tauri getVersion injected
-      const currentVersion = "0.1.0"; 
+      const currentVersion = '0.1.0';
       const info = await api.checkUpdate({
         current_version: currentVersion,
-        feed_url: feedUrl
+        feed_url: feedUrl,
       });
       if (info.update_available) {
         setUpdateInfo(info);
@@ -29,7 +23,21 @@ export const UpdaterModal: React.FC = () => {
     } catch (e) {
       console.error('Failed to check for updates', e);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (settings?.auto_update_enabled && settings.update_feed_url) {
+      const timer = window.setTimeout(() => {
+        void checkUpdate(settings.update_feed_url as string);
+      }, 0);
+
+      return () => {
+        window.clearTimeout(timer);
+      };
+    }
+
+    return undefined;
+  }, [checkUpdate, settings?.auto_update_enabled, settings?.update_feed_url]);
 
   if (!isOpen || !updateInfo) return null;
 

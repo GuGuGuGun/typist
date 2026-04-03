@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useStore } from '../store';
 import { eventToShortcut } from '../commands/definitions';
 
@@ -12,7 +12,7 @@ export const KeybindingPane: React.FC = () => {
   const [editingCommandId, setEditingCommandId] = useState<string | null>(null);
   const [draftShortcut, setDraftShortcut] = useState('');
 
-  const commands = useMemo(() => getCommandsForKeybinding(), [getCommandsForKeybinding, keybindings]);
+  const commands = getCommandsForKeybinding();
 
   return (
     <div className="preferences-pane-content">

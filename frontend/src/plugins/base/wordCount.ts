@@ -1,22 +1,44 @@
 import React, { useEffect, useState } from 'react';
 
+interface TypistApiLike {
+  editor: {
+    getContent: () => string;
+  };
+  ui: {
+    registerSlot: (
+      position: string,
+      pluginId: string,
+      id: string,
+      component: React.FC,
+    ) => void;
+    unregisterSlot: (position: string, pluginId: string, id: string) => void;
+  };
+}
+
+type WordCountWindow = Window & {
+  TypistAPI?: TypistApiLike;
+  __typistWordCountMounted?: boolean;
+};
+
+const appWindow = window as unknown as WordCountWindow;
+
 /**
  * Proof of Concept: Built-in Word Count Plugin
  * This demonstrates how external plugins will use the global `TypistAPI`
  * to interact with the environment.
  */
 export const mountWordCountPlugin = () => {
-  if ((window as any).__typistWordCountMounted) {
+  if (appWindow.__typistWordCountMounted) {
     return;
   }
 
-  const api = (window as any).TypistAPI;
+  const api = appWindow.TypistAPI;
   if (!api) {
     console.error("TypistAPI SDK not found. Cannot mount plugin.");
     return;
   }
 
-  (window as any).__typistWordCountMounted = true;
+  appWindow.__typistWordCountMounted = true;
 
   const PLUGIN_ID = 'dev.typist.builtin.wordcount';
   const SLOT_POSITION = 'status_bar_right';
@@ -56,6 +78,6 @@ export const mountWordCountPlugin = () => {
 
   return () => {
     api.ui.unregisterSlot(SLOT_POSITION, PLUGIN_ID, SLOT_ID);
-    (window as any).__typistWordCountMounted = false;
+    appWindow.__typistWordCountMounted = false;
   };
 };

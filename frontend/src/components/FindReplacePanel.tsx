@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { api, type SearchMatch } from '../api';
 import { useStore } from '../store';
 import { ChevronDown, ChevronUp, Replace, Search, X } from 'lucide-react';
@@ -43,7 +43,7 @@ export const FindReplacePanel: React.FC = () => {
     return { prefix, hit, suffix };
   };
 
-  const locateMatchInEditor = (match: SearchMatch) => {
+  const locateMatchInEditor = useCallback((match: SearchMatch) => {
     const editorScrollContainer = document.querySelector('.editor-area') as HTMLElement | null;
     if (editorScrollContainer && activeContent.length > 0) {
       const maxScroll = Math.max(0, editorScrollContainer.scrollHeight - editorScrollContainer.clientHeight);
@@ -98,7 +98,7 @@ export const FindReplacePanel: React.FC = () => {
 
       node = walker.nextNode();
     }
-  };
+  }, [activeContent.length, currentMatchIndex, matches]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -111,7 +111,7 @@ export const FindReplacePanel: React.FC = () => {
     if (match) {
       locateMatchInEditor(match);
     }
-  }, [isOpen, currentMatchIndex, matches]);
+  }, [isOpen, currentMatchIndex, matches, locateMatchInEditor]);
 
   if (!isOpen) return null;
 
