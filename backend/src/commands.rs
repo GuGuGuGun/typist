@@ -171,8 +171,13 @@ impl BackendFacade {
 
     pub fn open_workspace(&self, path: String) -> BackendResult<OpenWorkspaceResponse> {
         let opened = workspace_service::open_workspace(path.as_str())?;
+        let canonical_root = PathBuf::from(&opened.root_path)
+            .canonicalize()
+            .unwrap_or_else(|_| PathBuf::from(&opened.root_path))
+            .to_string_lossy()
+            .to_string();
         let mut state = self.lock_state()?;
-        state.set_workspace_root(Some(path));
+        state.set_workspace_root(Some(canonical_root));
         Ok(opened)
     }
 
@@ -182,30 +187,58 @@ impl BackendFacade {
     }
 
     pub fn create_workspace_file(&self, parent_path: String, name: String) -> BackendResult<String> {
+        let workspace_root = self.require_workspace_root()?;
+        self.ensure_path_inside_workspace(workspace_root.as_path(), Path::new(parent_path.as_str()), "parent path")?;
         workspace_service::create_workspace_file(parent_path.as_str(), name.as_str())
     }
 
     pub fn create_workspace_folder(&self, parent_path: String, name: String) -> BackendResult<String> {
+        let workspace_root = self.require_workspace_root()?;
+        self.ensure_path_inside_workspace(workspace_root.as_path(), Path::new(parent_path.as_str()), "parent path")?;
         workspace_service::create_workspace_folder(parent_path.as_str(), name.as_str())
     }
 
     pub fn rename_workspace_entry(&self, target_path: String, new_name: String) -> BackendResult<String> {
+        let workspace_root = self.require_workspace_root()?;
+        self.ensure_path_inside_workspace(workspace_root.as_path(), Path::new(target_path.as_str()), "target path")?;
         workspace_service::rename_workspace_entry(target_path.as_str(), new_name.as_str())
     }
 
     pub fn delete_workspace_entry(&self, target_path: String) -> BackendResult<()> {
+        let workspace_root = self.require_workspace_root()?;
+        self.ensure_path_inside_workspace(workspace_root.as_path(), Path::new(target_path.as_str()), "target path")?;
         workspace_service::delete_workspace_entry(target_path.as_str())
     }
 
     pub fn move_workspace_entry(&self, source_path: String, destination_parent_path: String) -> BackendResult<String> {
+        let workspace_root = self.require_workspace_root()?;
+        self.ensure_path_inside_workspace(workspace_root.as_path(), Path::new(source_path.as_str()), "source path")?;
+        self.ensure_path_inside_workspace(
+            workspace_root.as_path(),
+            Path::new(destination_parent_path.as_str()),
+            "destination parent path",
+        )?;
         workspace_service::move_workspace_entry(source_path.as_str(), destination_parent_path.as_str())
     }
 
     pub fn copy_workspace_entry(&self, source_path: String, destination_parent_path: String) -> BackendResult<String> {
+        let workspace_root = self.require_workspace_root()?;
+        self.ensure_path_inside_workspace(workspace_root.as_path(), Path::new(source_path.as_str()), "source path")?;
+        self.ensure_path_inside_workspace(
+            workspace_root.as_path(),
+            Path::new(destination_parent_path.as_str()),
+            "destination parent path",
+        )?;
         workspace_service::copy_workspace_entry(source_path.as_str(), destination_parent_path.as_str())
     }
 
     pub fn global_search(&self, request: GlobalSearchRequest) -> BackendResult<GlobalSearchResponse> {
+        let workspace_root = self.require_workspace_root()?;
+        self.ensure_path_inside_workspace(
+            workspace_root.as_path(),
+            Path::new(request.workspace_path.as_str()),
+            "workspace path",
+        )?;
         workspace_service::global_search(&request)
     }
 
@@ -395,6 +428,44 @@ impl BackendFacade {
 
     fn lock_state(&self) -> BackendResult<MutexGuard<'_, AppState>> {
         self.state.lock().map_err(|_| BackendError::StatePoisoned)
+    }
+
+    fn require_workspace_root(&self) -> BackendResult<PathBuf> {
+        let state = self.lock_state()?;
+        state
+            .workspace_root()
+            .map(PathBuf::from)
+            .ok_or_else(|| BackendError::Workspace("workspace is not opened".to_string()))
+    }
+
+    fn ensure_path_inside_workspace(
+        &self,
+        workspace_root: &Path,
+        candidate: &Path,
+        label: &str,
+    ) -> BackendResult<()> {
+        let root = workspace_root.canonicalize().map_err(|error| {
+            BackendError::Workspace(format!(
+                "failed to resolve workspace root {}: {error}",
+                workspace_root.display()
+            ))
+        })?;
+
+        let candidate_canonical = candidate.canonicalize().map_err(|error| {
+            BackendError::Workspace(format!(
+                "invalid {label} {}: {error}",
+                candidate.display()
+            ))
+        })?;
+
+        if !candidate_canonical.starts_with(&root) {
+            return Err(BackendError::Workspace(format!(
+                "{label} is outside workspace root: {}",
+                candidate.display()
+            )));
+        }
+
+        Ok(())
     }
 }
 

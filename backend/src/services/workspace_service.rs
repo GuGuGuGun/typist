@@ -74,7 +74,12 @@ pub fn global_search(request: &GlobalSearchRequest) -> BackendResult<GlobalSearc
 
         scanned_files += 1;
         let path = entry.path();
-        let content = fs::read_to_string(path).unwrap_or_default();
+        let content = fs::read_to_string(path).map_err(|error| {
+            BackendError::Workspace(format!(
+                "failed to read file during global search {}: {error}",
+                path.display()
+            ))
+        })?;
 
         for item in regex.find_iter(&content) {
             let (line, column, line_text) = offset_to_line_column_with_text(&content, item.start());
