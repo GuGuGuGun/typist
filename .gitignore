@@ -19,6 +19,9 @@ pnpm-debug.log*
 /docs/PRD.md
 /docs/重构文档.md
 /specs/
+/.github/
+/.trellis/
+AGENTS.md
 # OS/editor
 .DS_Store
 Thumbs.db
