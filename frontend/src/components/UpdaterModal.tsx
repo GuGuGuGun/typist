@@ -11,7 +11,7 @@ export const UpdaterModal: React.FC = () => {
   const checkUpdate = useCallback(async (feedUrl: string) => {
     try {
       // Stub current version since we don't have tauri getVersion injected
-      const currentVersion = '0.1.0';
+      const currentVersion = '0.1.1';
       const info = await api.checkUpdate({
         current_version: currentVersion,
         feed_url: feedUrl,

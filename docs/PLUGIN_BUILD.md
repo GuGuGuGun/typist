@@ -61,7 +61,7 @@ my-plugin/
 {
   "id": "dev.typist.plugin.hello",
   "name": "Hello Typist",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "entry": "file:///E:/plugins/hello/dist/typist-plugin.iife.js",
   "permissions": ["events.emit", "images.paste"],
   "description": "一个用于演示 TypistAPI 的示例插件"
@@ -139,7 +139,7 @@ my-plugin/
 ```json
 {
   "name": "typist-plugin-hello",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "scripts": {
